@@ -12,8 +12,8 @@ import {
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent
 } from "@/lib/gmailHelper";
-
 import { insforge } from "@/lib/insforge";
+import { whatsappManager } from "@/lib/whatsappManager";
 
 export async function POST(request: Request) {
   let messages: any[] = [];
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json({
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Empty message payload" }, { status: 400 });
     }
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
+    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
     let lastError: any = null;
     let responseText = "";
 
@@ -215,6 +215,18 @@ export async function POST(request: Request) {
                       eventId: { type: "STRING", description: "The unique ID of the calendar event to delete." }
                     },
                     required: ["eventId"]
+                  }
+                },
+                {
+                  name: "sendWhatsAppMessage",
+                  description: "Sends a WhatsApp message to a specific phone number.",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      phone: { type: "STRING", description: "The recipient's phone number with country code (e.g. +16503332026)." },
+                      message: { type: "STRING", description: "The text message to send." }
+                    },
+                    required: ["phone", "message"]
                   }
                 }
               ]
@@ -351,6 +363,28 @@ export async function POST(request: Request) {
                 responseText = followUpResult.response.text();
               } else {
                 responseText = "I encountered an error trying to delete that event from your Google Calendar.";
+              }
+            } else if (call.name === "sendWhatsAppMessage") {
+              const { phone, message } = call.args as any;
+              try {
+                const result = await whatsappManager.executeTool("whatsapp.send_message", { phone, message }, userId || "default_user");
+                if (result.success) {
+                  if (result.source === "sandbox") {
+                    const followUpResult = await chat.sendMessage([
+                      { text: `WhatsApp connection is currently in Sandbox mode. The message was mocked and NOT actually sent over the real network. Tell the user they need to link their physical device.` }
+                    ]);
+                    responseText = followUpResult.response.text();
+                  } else {
+                    const followUpResult = await chat.sendMessage([
+                      { text: `Successfully sent WhatsApp message to ${phone}. Tell the user it's done.` }
+                    ]);
+                    responseText = followUpResult.response.text();
+                  }
+                } else {
+                  responseText = `I tried to send the WhatsApp message but it failed. Please ensure your WhatsApp is connected.`;
+                }
+              } catch (e: any) {
+                responseText = `I encountered an error sending the WhatsApp message: ${e.message}`;
               }
             }
           }

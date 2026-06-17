@@ -16,30 +16,29 @@ This approach leverages state-of-the-art AI for development and execution, while
 
 ## ✨ Implemented Core Features
 
-### 🤖 1. Advanced AI Agent
+### 🤖 1. Advanced AI Agent & Automation
 * **API Integration:** Leverages the latest Gemini models (`gemini-2.5-flash` and `gemini-2.5-pro`) for intelligent, contextual conversation and reasoning.
-* **Function Calling / Tools:** The AI agent can directly execute functions on your behalf, including reading emails, listing calendar events, creating calendar events, and preparing drafts.
+* **Function Calling / Tools:** The AI agent can directly execute functions on your behalf, including reading real emails, listing real calendar events, creating calendar events, and dispatching live WhatsApp messages.
 
-### 📧 2. Deep Gmail Integration
-* **Real-time Access:** Scan your Gmail inbox, count unread messages, and locate specific emails.
+### 📧 2. Deep Gmail Integration (Live OAuth)
+* **Real-time Access:** Connects securely to your actual Gmail account via OAuth. Scan your inbox, fetch live unread messages, and locate specific emails instantly.
 * **Email Search:** Search your email threads by sender, subject line, or keywords.
-* **Draft Creator:** Draft responses automatically using the AI and save them directly as Gmail drafts.
-* **Direct Send:** Send approved responses directly to recipients via secure OAuth connections.
+* **Draft Creator:** Draft responses automatically using the AI and save them directly as Gmail drafts in your live account.
+* **Direct Send:** Send approved responses directly to real recipients without leaving the dashboard.
 
-### 📅 3. Dynamic Google Calendar Integration
-* **Bidirectional Sync:** Syncs live calendar events with Google Calendar.
+### 📅 3. Dynamic Google Calendar Integration (Live OAuth)
+* **Bidirectional Sync:** Syncs live calendar events directly with your personal Google Calendar.
 * **Dynamic Widget:** The dashboard calendar widget displays live Google Calendar events and supports full CRUD actions (Add and Delete).
-* **AI Tooling:** The AI assistant can list, create, and delete calendar events through chat tools.
+* **AI Tooling:** The AI assistant can list, create, and delete actual calendar events through chat tools.
 
-### 💬 4. WhatsApp Linker
-* **Live Connection:** Integrates with WhatsApp via Baileys socket connection.
-* **Pairing Code / QR:** Connect using phone numbers and pairing codes generated directly on the UI.
-* **AI Chat Dispatch:** Ask the assistant to send WhatsApp updates or alerts.
+### 💬 4. WhatsApp Gateway (Live Baileys Web Socket)
+* **Live WhatsApp Connection:** Connect your actual WhatsApp account via a live Baileys web socket pairing code.
+* **Persistent Sessions:** Your WhatsApp authentication session is securely encrypted and saved in the PostgreSQL database, automatically restoring when the server restarts.
+* **Live Messaging:** Send actual WhatsApp messages to real phone numbers directly from the dashboard or through the AI chat agent.
 
 ### 📋 5. Customized Daily Briefings
-* **Schedule Generator:** Configure recurring times, frequencies, specific apps (Gmail, Slack), and priority filters.
-* **Intelligent Synthesis:** Summarizes recent unread threads, upcoming meetings, and urgent tasks into a clean daily digest.
-* **Multi-Platform Dispatch:** Send the generated briefing directly to your WhatsApp or Gmail account as a draft or direct message.
+* **Intelligent Synthesis:** Summarizes recent unread live threads and upcoming meetings into a clean daily digest with `Critical`, `High`, and `Medium` priority tagging.
+* **Dedicated Briefings Dashboard:** A clean, glassmorphic UI where users can view generated summaries based on their real data and manually force a generation.
 
 ### 🛠️ 6. Workspace Productivity Widgets
 * **Quick Tasks (Todos):** Add, toggle, and delete workspace checklist items, persisted to your database.
@@ -51,14 +50,14 @@ This approach leverages state-of-the-art AI for development and execution, while
 
 ## 🗄️ Database Architecture (InsForge BaaS)
 
-Optimus uses a PostgreSQL database schema managed via **InsForge**. The tables are structured to support multi-tenancy and data isolation:
+Optimus uses a PostgreSQL database schema managed via **InsForge**. The tables are structured to support multi-tenancy and data isolation via robust Row Level Security (RLS):
 
-1. `users` — Secure profiles, Google OAuth credential payloads (tokens are encrypted).
-2. `briefing_schedules` — User briefing preferences, selected applications, and timing rules.
-3. `generated_briefings` — Log of compiled briefings, summaries, and categories metadata.
-4. `todos` — User tasks, workspace priorities, and completion status.
-5. `sticky_notes` — Position, colors, and content of user dashboard notes.
-6. `saved_articles` — Curated bookmarks and saved feeds for subsequent AI summaries.
+1. `users` — Secure profiles and InsForge authentication states.
+2. `app_connections` — Encrypted OAuth tokens for Gmail, Slack, and WhatsApp.
+3. `briefing_schedules` — User briefing preferences and cron timing rules.
+4. `briefings_history` — The persistent log of generated AI briefs containing the `data` JSON blob.
+5. `todos` — User tasks, workspace priorities, and completion status.
+6. `sticky_notes` — Position, colors, and content of user dashboard notes.
 
 ---
 

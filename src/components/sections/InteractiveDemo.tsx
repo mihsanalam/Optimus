@@ -206,7 +206,7 @@ export default function InteractiveDemo() {
             See the AI Agent in Action
           </h2>
           <p className="text-sm sm:text-base text-zinc-550 dark:text-zinc-400 leading-relaxed">
-            Connect mock applications, feed in raw notification feeds, and watch Optimus instantly synthesize summaries and schedule tasks.
+            Connect applications, feed in raw notification feeds, and watch Optimus instantly synthesize summaries and schedule tasks.
           </p>
         </div>
 
@@ -216,7 +216,7 @@ export default function InteractiveDemo() {
           {/* Step 1: Connect / Disconnect Cards */}
           <div className="space-y-4">
             <span className="text-[10px] uppercase font-bold tracking-widest text-zinc-400 dark:text-zinc-500 block">
-              Step 1: Toggle App Authentication Mock
+              Step 1: Toggle App Authentication
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               {apps.map(app => (

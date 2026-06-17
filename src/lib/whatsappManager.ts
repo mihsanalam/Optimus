@@ -6,12 +6,10 @@ import makeWASocket, {
 import pino from "pino";
 import fs from "fs";
 import path from "path";
+import { insforge } from "@/lib/insforge";
 
 // Logger configuration
 const logger = pino({ level: "silent" });
-
-// Session folder within workspace
-const AUTH_DIR = path.join(process.cwd(), "whatsapp_auth_session");
 
 interface WhatsAppSession {
   sock: WASocket | null;
@@ -23,22 +21,28 @@ interface WhatsAppSession {
 
 // Global declaration for Next.js hot reloading
 declare global {
-  var whatsappSession: WhatsAppSession | undefined;
+  var whatsappSessions: Record<string, WhatsAppSession> | undefined;
 }
 
-if (!globalThis.whatsappSession) {
-  globalThis.whatsappSession = {
-    sock: null,
-    status: "disconnected",
-    phoneNumber: null,
-    pairingCode: null,
-    logs: []
-  };
+if (!globalThis.whatsappSessions) {
+  globalThis.whatsappSessions = {};
 }
 
-const session = globalThis.whatsappSession;
+const getSessionForUser = (userId: string): WhatsAppSession => {
+  if (!globalThis.whatsappSessions![userId]) {
+    globalThis.whatsappSessions![userId] = {
+      sock: null,
+      status: "disconnected",
+      phoneNumber: null,
+      pairingCode: null,
+      logs: []
+    };
+  }
+  return globalThis.whatsappSessions![userId];
+};
 
-function addLog(message: string) {
+function addLog(userId: string, message: string) {
+  const session = getSessionForUser(userId);
   const timestamp = new Date().toLocaleTimeString();
   const logMsg = `[${timestamp}] ${message}`;
   session.logs.push(logMsg);
@@ -47,8 +51,34 @@ function addLog(message: string) {
   }
 }
 
+// Serializes all files in the auth directory into a JSON-friendly key-value object
+function serializeFolder(dir: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!fs.existsSync(dir)) return result;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isFile()) {
+      result[file] = fs.readFileSync(filePath, "utf-8");
+    }
+  }
+  return result;
+}
+
+// Deserializes files from database into the local session directory
+function deserializeFolder(dir: string, data: Record<string, string>) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  for (const [file, content] of Object.entries(data)) {
+    fs.writeFileSync(path.join(dir, file), content, "utf-8");
+  }
+}
+
 export const whatsappManager = {
-  getSession() {
+  getSession(userId: string) {
+    const session = getSessionForUser(userId);
     return {
       status: session.status,
       phoneNumber: session.phoneNumber,
@@ -57,19 +87,35 @@ export const whatsappManager = {
     };
   },
 
-  setupSocketEventHandlers(sock: WASocket) {
+  setupSocketEventHandlers(sock: WASocket, userId: string) {
+    const session = getSessionForUser(userId);
+    const userAuthDir = path.join(process.cwd(), `whatsapp_auth_session_${userId}`);
+
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect } = update;
       
       if (connection === "connecting") {
-        session.status = "connecting";
-        addLog("WhatsApp Web Gateway is connecting...");
+        if (session.status !== "pairing") {
+          session.status = "connecting";
+        }
+        addLog(userId, "WhatsApp Web Gateway is connecting...");
       }
 
       if (connection === "open") {
         session.status = "connected";
         session.pairingCode = null;
-        addLog("WhatsApp successfully connected and authenticated!");
+        addLog(userId, "WhatsApp successfully connected and authenticated!");
+        
+        // Save final credentials to database
+        try {
+          const serialized = serializeFolder(userAuthDir);
+          await insforge.database
+            .from("users")
+            .update({ whatsapp_credentials: serialized })
+            .eq("id", userId);
+        } catch (err) {
+          console.error("Failed to save whatsapp credentials to DB on open:", err);
+        }
       }
 
       if (connection === "close") {
@@ -77,23 +123,36 @@ export const whatsappManager = {
           (lastDisconnect?.error as any)?.output?.statusCode !==
           DisconnectReason.loggedOut;
         
-        session.status = "disconnected";
+        session.status = shouldReconnect ? "connecting" : "disconnected";
         addLog(
+          userId,
           `WhatsApp connection closed due to: ${
             lastDisconnect?.error || "Unknown error"
           }. Reconnecting: ${shouldReconnect}`
         );
 
         if (shouldReconnect) {
-          this.reconnect();
+          this.reconnect(userId);
         } else {
-          this.cleanup();
+          this.cleanup(userId);
+          // Also clear from database on logout
+          try {
+            await insforge.database
+              .from("users")
+              .update({ whatsapp_credentials: null })
+              .eq("id", userId);
+          } catch (err) {
+            console.error("Failed to clear whatsapp credentials from DB:", err);
+          }
         }
       }
     });
   },
 
-  async connect(phoneNumber: string): Promise<string> {
+  async connect(phoneNumber: string, userId: string): Promise<string> {
+    const session = getSessionForUser(userId);
+    const userAuthDir = path.join(process.cwd(), `whatsapp_auth_session_${userId}`);
+
     // Clean phone number: keep only digits
     const cleanNumber = phoneNumber.replace(/\D/g, "");
     if (!cleanNumber) {
@@ -102,30 +161,41 @@ export const whatsappManager = {
 
     session.phoneNumber = cleanNumber;
     session.status = "connecting";
-    addLog(`Initiating connection for WhatsApp phone number: ${cleanNumber}`);
+    addLog(userId, `Initiating connection for WhatsApp phone number: ${cleanNumber}`);
 
     // Clean previous session folder if starting fresh
-    if (fs.existsSync(AUTH_DIR)) {
+    if (fs.existsSync(userAuthDir)) {
       try {
-        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
-        addLog("Cleared old authentication folder.");
+        fs.rmSync(userAuthDir, { recursive: true, force: true });
+        addLog(userId, "Cleared old authentication folder.");
       } catch (err) {
-        addLog(`Warning: Failed to clear old session folder: ${err}`);
+        addLog(userId, `Warning: Failed to clear old session folder: ${err}`);
       }
     }
-
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { state, saveCreds } = await useMultiFileAuthState(userAuthDir);
 
     const sock = makeWASocket({
       auth: state,
       logger: logger,
       printQRInTerminal: false,
-      browser: ["Chrome (Linux)", "", ""] // Required browser format for pairing codes
+      browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
     session.sock = sock;
 
-    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("creds.update", async () => {
+      await saveCreds();
+      // Sync credentials to database
+      try {
+        const serialized = serializeFolder(userAuthDir);
+        await insforge.database
+          .from("users")
+          .update({ whatsapp_credentials: serialized })
+          .eq("id", userId);
+      } catch (err) {
+        console.error("Failed to sync credentials to DB on update:", err);
+      }
+    });
 
     return new Promise<string>((resolve, reject) => {
       let resolved = false;
@@ -152,18 +222,17 @@ export const whatsappManager = {
         if (qr) {
           if (!resolved) {
             resolved = true;
-            addLog(`Socket is ready. Requesting pairing code for +${cleanNumber}...`);
+            addLog(userId, `Socket is ready. Requesting pairing code for +${cleanNumber}...`);
             try {
-              // Wait 1.5 seconds just to ensure socket has fully stabilized
               await new Promise((r) => setTimeout(r, 1500));
               const code = await sock.requestPairingCode(cleanNumber);
               session.pairingCode = code;
               session.status = "pairing";
-              addLog(`Pairing code generated successfully: ${code}`);
+              addLog(userId, `Pairing code generated successfully: ${code}`);
               resolve(code);
             } catch (err: any) {
               session.status = "disconnected";
-              addLog(`Failed to request pairing code: ${err.message || err}`);
+              addLog(userId, `Failed to request pairing code: ${err.message || err}`);
               reject(err);
             } finally {
               sock.ev.off("connection.update", connectionListener);
@@ -173,11 +242,8 @@ export const whatsappManager = {
       };
 
       sock.ev.on("connection.update", connectionListener);
+      this.setupSocketEventHandlers(sock, userId);
 
-      // Handle standard status updates globally
-      this.setupSocketEventHandlers(sock);
-
-      // Timeout fallback if the socket fails to connect or emit updates within 20 seconds
       setTimeout(() => {
         if (!resolved) {
           resolved = true;
@@ -188,27 +254,62 @@ export const whatsappManager = {
     });
   },
 
-  async reconnect() {
+  async reconnect(userId: string) {
+    const session = getSessionForUser(userId);
+    const userAuthDir = path.join(process.cwd(), `whatsapp_auth_session_${userId}`);
+    
     try {
-      addLog("Attempting reconnection...");
-      const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+      session.status = "connecting";
+      addLog(userId, "Attempting reconnection...");
+      
+      // Load database credentials if folder is empty
+      if (!fs.existsSync(userAuthDir) || fs.readdirSync(userAuthDir).length === 0) {
+        try {
+          const { data: dbUser } = await insforge.database
+            .from("users")
+            .select("whatsapp_credentials")
+            .eq("id", userId)
+            .maybeSingle();
+          if (dbUser?.whatsapp_credentials) {
+            deserializeFolder(userAuthDir, dbUser.whatsapp_credentials);
+            addLog(userId, "Restored WhatsApp credentials from database for reconnection.");
+          }
+        } catch (err) {
+          console.error("Failed to restore credentials from DB for reconnect:", err);
+        }
+      }
+
+      const { state, saveCreds } = await useMultiFileAuthState(userAuthDir);
       const sock = makeWASocket({
         auth: state,
         logger: logger,
         printQRInTerminal: false,
-        browser: ["Chrome (Linux)", "", ""]
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
       });
 
       session.sock = sock;
-      sock.ev.on("creds.update", saveCreds);
-      this.setupSocketEventHandlers(sock);
+      sock.ev.on("creds.update", async () => {
+        await saveCreds();
+        try {
+          const serialized = serializeFolder(userAuthDir);
+          await insforge.database
+            .from("users")
+            .update({ whatsapp_credentials: serialized })
+            .eq("id", userId);
+        } catch (err) {
+          console.error("Failed to save creds on reconnect update:", err);
+        }
+      });
+      
+      this.setupSocketEventHandlers(sock, userId);
     } catch (e: any) {
-      addLog(`Reconnection error: ${e.message}`);
+      addLog(userId, `Reconnection error: ${e.message}`);
     }
   },
 
-  async disconnect() {
-    addLog("Disconnecting WhatsApp account...");
+  async disconnect(userId: string) {
+    const session = getSessionForUser(userId);
+    addLog(userId, "Disconnecting WhatsApp account...");
     if (session.sock) {
       try {
         await session.sock.logout();
@@ -216,18 +317,31 @@ export const whatsappManager = {
         // Ignore
       }
     }
-    this.cleanup();
-    addLog("WhatsApp disconnected and local credentials cleared.");
+    this.cleanup(userId);
+
+    // Clear credentials in PostgreSQL
+    try {
+      await insforge.database
+        .from("users")
+        .update({ whatsapp_credentials: null })
+        .eq("id", userId);
+    } catch (err) {
+      console.error("Failed to clear credentials from DB on disconnect:", err);
+    }
+    addLog(userId, "WhatsApp disconnected and credentials cleared.");
   },
 
-  cleanup() {
+  cleanup(userId: string) {
+    const session = getSessionForUser(userId);
     session.sock = null;
     session.status = "disconnected";
     session.phoneNumber = null;
     session.pairingCode = null;
-    if (fs.existsSync(AUTH_DIR)) {
+
+    const userAuthDir = path.join(process.cwd(), `whatsapp_auth_session_${userId}`);
+    if (fs.existsSync(userAuthDir)) {
       try {
-        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        fs.rmSync(userAuthDir, { recursive: true, force: true });
       } catch (e) {
         // Ignore
       }
@@ -235,22 +349,20 @@ export const whatsappManager = {
   },
 
   // MCP Execution Tooling
-  async executeTool(toolName: string, inputs: any = {}): Promise<any> {
-    addLog(`Executing MCP Tool: ${toolName}`);
+  async executeTool(toolName: string, inputs: any = {}, userId: string = "default_user"): Promise<any> {
+    const session = getSessionForUser(userId);
+    addLog(userId, `Executing MCP Tool: ${toolName}`);
     
     if (session.status !== "connected" || !session.sock) {
-      // Return beautiful simulated sandbox data if not fully connected,
-      // so the dashboard sandbox is ALWAYS fully interactive!
-      addLog(`[Sandbox Mode] WhatsApp not active. Executing ${toolName} with mock database.`);
-      return this.executeMockTool(toolName, inputs);
+      addLog(userId, `[Error] WhatsApp not active. Cannot execute ${toolName}.`);
+      throw new Error(`WhatsApp is not connected for user ${userId}. Please connect in the Integrations dashboard.`);
     }
 
     try {
       const sock = session.sock;
       switch (toolName) {
         case "whatsapp.fetch_recent_messages": {
-          // Fetch chats or messages
-          addLog("Retrieving latest messages from active WhatsApp chats...");
+          addLog(userId, "Retrieving latest messages from active WhatsApp chats...");
           return {
             success: true,
             source: "live",
@@ -263,7 +375,7 @@ export const whatsappManager = {
 
         case "whatsapp.read_chat_history": {
           const phone = inputs.phone || "+1234567890";
-          addLog(`Retrieving chat logs for recipient: ${phone}`);
+          addLog(userId, `Retrieving chat logs for recipient: ${phone}`);
           return {
             success: true,
             source: "live",
@@ -283,14 +395,23 @@ export const whatsappManager = {
             throw new Error("Recipient phone and message content are required");
           }
           
-          // Format phone number into jid: e.g. 1234567890@s.whatsapp.net
           const cleanPhone = phone.replace(/\D/g, "");
           const jid = `${cleanPhone}@s.whatsapp.net`;
           
-          addLog(`Sending message to JID ${jid}...`);
-          const result = await sock.sendMessage(jid, { text });
+          addLog(userId, `Checking if JID ${jid} exists on WhatsApp...`);
+          const waResult = await sock.onWhatsApp(jid);
+          const waStatus = waResult && waResult.length > 0 ? waResult[0] : null;
           
-          addLog(`Message successfully sent to ${phone}. Message JID: ${result?.key?.id}`);
+          if (!waStatus?.exists) {
+            throw new Error(`The phone number +${cleanPhone} is not registered on WhatsApp or is incorrectly formatted.`);
+          }
+
+          const targetJid = waStatus.jid; // Use the exact JID returned by WhatsApp
+          
+          addLog(userId, `Sending message to verified JID ${targetJid}...`);
+          const result = await sock.sendMessage(targetJid, { text });
+          
+          addLog(userId, `Message successfully sent to ${phone}. Message JID: ${result?.key?.id}`);
           return {
             success: true,
             status: "sent",
@@ -302,7 +423,7 @@ export const whatsappManager = {
 
         case "whatsapp.search_chats": {
           const query = inputs.query || "";
-          addLog(`Searching active contact threads matching query: "${query}"`);
+          addLog(userId, `Searching active contact threads matching query: "${query}"`);
           return {
             success: true,
             source: "live",
@@ -315,7 +436,7 @@ export const whatsappManager = {
 
         case "whatsapp.summarize_conversations": {
           const chatName = inputs.chat_name || "Sarah Project Group";
-          addLog(`Summarizing latest interactions in: "${chatName}"`);
+          addLog(userId, `Summarizing latest interactions in: "${chatName}"`);
           return {
             success: true,
             source: "live",
@@ -330,7 +451,7 @@ export const whatsappManager = {
 
         case "whatsapp.get_contact_details": {
           const phone = inputs.phone || "";
-          addLog(`Fetching profile meta and status details for: ${phone}`);
+          addLog(userId, `Fetching profile meta and status details for: ${phone}`);
           return {
             success: true,
             source: "live",
@@ -344,7 +465,7 @@ export const whatsappManager = {
         }
 
         case "whatsapp.list_groups": {
-          addLog("Retrieving listing of participating chat groups...");
+          addLog(userId, "Retrieving listing of participating chat groups...");
           return {
             success: true,
             source: "live",
@@ -357,7 +478,7 @@ export const whatsappManager = {
 
         case "whatsapp.fetch_group_messages": {
           const groupId = inputs.group_id || "group_1";
-          addLog(`Fetching messages from group channel ID: ${groupId}`);
+          addLog(userId, `Fetching messages from group channel ID: ${groupId}`);
           return {
             success: true,
             source: "live",
@@ -377,10 +498,10 @@ export const whatsappManager = {
           }
           
           const jid = groupId.includes("@") ? groupId : `${groupId}@g.us`;
-          addLog(`Sending message block to group JID ${jid}...`);
+          addLog(userId, `Sending message block to group JID ${jid}...`);
           const result = await sock.sendMessage(jid, { text });
           
-          addLog(`Group message dispatched successfully to group JID ${jid}`);
+          addLog(userId, `Group message dispatched successfully to group JID ${jid}`);
           return {
             success: true,
             status: "sent",
@@ -394,132 +515,31 @@ export const whatsappManager = {
           throw new Error(`WhatsApp MCP Tool '${toolName}' not supported`);
       }
     } catch (err: any) {
-      addLog(`Error executing live tool ${toolName}: ${err.message || err}`);
-      // Fallback to mock on error to maintain high availability
-      return this.executeMockTool(toolName, inputs);
-    }
-  },
-
-  // Mock implementation for sandbox testing & fallback
-  executeMockTool(toolName: string, inputs: any = {}): any {
-    switch (toolName) {
-      case "whatsapp.fetch_recent_messages":
-        return {
-          success: true,
-          source: "sandbox",
-          messages: [
-            { id: "msg-wa-1", from: "+14155552671 (John QA)", body: "Hamburger menu is fixed. Looks great on iPhone 15 Pro Max!", time: "5 mins ago" },
-            { id: "msg-wa-2", from: "+16503332026 (Sarah Miller)", body: "Don't forget the marketing outline submission tomorrow.", time: "1 hour ago" },
-            { id: "msg-wa-3", from: "+15104443900 (Staging Pipeline)", body: "Alert: Build deployment #490 succeeded.", time: "2 hours ago" }
-          ]
-        };
-      case "whatsapp.read_chat_history":
-        return {
-          success: true,
-          source: "sandbox",
-          phone: inputs.phone || "+16503332026",
-          history: [
-            { sender: "them", message: "Hey! Can we sync on copy doc updates?", time: "Yesterday, 2:15 PM" },
-            { sender: "you", message: "Sure, let's align at 4 PM.", time: "Yesterday, 2:20 PM" },
-            { sender: "them", message: "Perfect. I'll call you then.", time: "Yesterday, 2:22 PM" }
-          ]
-        };
-      case "whatsapp.send_message":
-        return {
-          success: true,
-          source: "sandbox",
-          status: "delivered",
-          recipient: inputs.recipient_phone || inputs.phone || "+16503332026",
-          message: inputs.message || inputs.text || "Hello from Optimus AI",
-          timestamp: new Date().toISOString()
-        };
-      case "whatsapp.search_chats":
-        return {
-          success: true,
-          source: "sandbox",
-          query: inputs.query || "Sarah",
-          matches: [
-            { id: "chat-wa-2", name: "Sarah Miller", lastMessage: "Don't forget the marketing outline submission tomorrow." }
-          ]
-        };
-      case "whatsapp.summarize_conversations":
-        return {
-          success: true,
-          source: "sandbox",
-          chat_name: inputs.chat_name || "Dev Team Sprint",
-          summary: "John confirmed the hamburger menu fix on mobile viewports. Sarah reminded the team regarding the Friday deadline for marketing copy.",
-          action_items: [
-            "Check mobile viewport header on dev build",
-            "Send updated marketing files to Sarah"
-          ]
-        };
-      case "whatsapp.get_contact_details":
-        return {
-          success: true,
-          source: "sandbox",
-          phone: inputs.phone || "+16503332026",
-          contact: {
-            name: "Sarah Miller (Client)",
-            status: "Busy writing specs ✍️",
-            verified: true
-          }
-        };
-      case "whatsapp.list_groups":
-        return {
-          success: true,
-          source: "sandbox",
-          groups: [
-            { id: "grp-wa-1", name: "Dev & Launch Sprint", participantsCount: 12 },
-            { id: "grp-wa-2", name: "Optimus Feedback Channel", participantsCount: 38 }
-          ]
-        };
-      case "whatsapp.fetch_group_messages":
-        return {
-          success: true,
-          source: "sandbox",
-          group_id: inputs.group_id || "grp-wa-1",
-          messages: [
-            { sender: "Mihsan Alam", text: "Next.js structure is ready." },
-            { sender: "John QA", text: "I am verifying routes now." }
-          ]
-        };
-      case "whatsapp.send_group_messages":
-        return {
-          success: true,
-          source: "sandbox",
-          status: "dispatched",
-          group_id: inputs.group_id || "grp-wa-1",
-          message: inputs.message || inputs.text || "Task automated via Optimus",
-          timestamp: new Date().toISOString()
-        };
-      default:
-        throw new Error(`Mock tool execution not found for '${toolName}'`);
+      addLog(userId, `Error executing live tool ${toolName}: ${err.message || err}`);
+      throw new Error(`Failed to execute WhatsApp tool ${toolName}: ${err.message || err}`);
     }
   }
 };
 
-// Auto-reconnect on server boot if saved credentials exist
+// Auto-reconnect all users on server boot if saved credentials exist in database
 if (typeof window === "undefined") {
-  const credsFile = path.join(AUTH_DIR, "creds.json");
-  if (fs.existsSync(credsFile)) {
-    setTimeout(async () => {
-      if (session.status === "disconnected") {
-        try {
-          addLog("Saved credentials detected. Restoring WhatsApp session...");
-          const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-          const sock = makeWASocket({
-            auth: state,
-            logger: logger,
-            printQRInTerminal: false,
-            browser: ["Chrome (Linux)", "", ""]
+  setTimeout(async () => {
+    try {
+      const { data: usersWithCreds } = await insforge.database
+        .from("users")
+        .select("id")
+        .not("whatsapp_credentials", "is", null);
+      
+      if (usersWithCreds && usersWithCreds.length > 0) {
+        console.log(`[WhatsApp Boot] Found ${usersWithCreds.length} users with stored WhatsApp sessions. Restoring...`);
+        for (const user of usersWithCreds) {
+          whatsappManager.reconnect(user.id).catch((err) => {
+            console.error(`[WhatsApp Boot] Failed to auto-restore session for user ${user.id}:`, err);
           });
-          session.sock = sock;
-          sock.ev.on("creds.update", saveCreds);
-          whatsappManager.setupSocketEventHandlers(sock);
-        } catch (e: any) {
-          addLog(`Auto-reconnection failed: ${e.message}`);
         }
       }
-    }, 1500);
-  }
+    } catch (e: any) {
+      console.error("[WhatsApp Boot] Auto-reconnection failed to initialize:", e);
+    }
+  }, 3000);
 }

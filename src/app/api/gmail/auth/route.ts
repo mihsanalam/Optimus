@@ -3,9 +3,14 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const state = searchParams.get("state") || "optimus_gmail_auth";
+  const mockParam = searchParams.get("mock");
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  
+  // Resolve host and protocol dynamically from headers
+  const host = request.headers.get("host") || "localhost:3000";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
+  const siteUrl = `${protocol}://${host}`;
   const redirectUri = `${siteUrl}/api/gmail/callback`;
 
   if (clientId) {
@@ -23,10 +28,10 @@ export async function GET(request: Request) {
     
     return NextResponse.redirect(googleAuthUrl);
   } else {
-    // Simulated Google OAuth redirect to our mock consent page
-    const mockAuthUrl = new URL("/gmail-oauth-mock", request.url);
-    mockAuthUrl.searchParams.set("state", state);
-    mockAuthUrl.searchParams.set("redirect_uri", redirectUri);
-    return NextResponse.redirect(mockAuthUrl.toString());
+    // Missing client ID, redirect to dashboard with error
+    const dashboardUrl = new URL("/integrations", request.url);
+    dashboardUrl.searchParams.set("gmail_status", "error");
+    dashboardUrl.searchParams.set("gmail_error", "Google Client ID is missing. Please configure your environment variables.");
+    return NextResponse.redirect(dashboardUrl.toString());
   }
 }

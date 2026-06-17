@@ -88,7 +88,17 @@ export async function getValidGmailToken(params: {
           }
         }
 
-        // Database token is invalid/expired. Refresh it using refresh token from db
+        // Database token is invalid/expired. Prevent loop if recently updated
+        const lastUpdated = creds.updatedAt ? new Date(creds.updatedAt).getTime() : 0;
+        const now = Date.now();
+        const wasRecentlyUpdated = (now - lastUpdated) < 5 * 60 * 1000; // 5 minutes
+
+        if (wasRecentlyUpdated) {
+          console.warn("[Gmail Helper] Token is invalid/expired but was refreshed within the last 5 minutes. Skipping refresh to prevent loop.");
+          return { accessToken: null, isNew: false };
+        }
+
+        // Refresh it using refresh token from db
         if (creds.refreshToken) {
           console.log("[Gmail Helper] Database token expired, refreshing via DB refresh token for user:", userId);
           const newAccessToken = await refreshGmailToken(creds.refreshToken);
@@ -118,11 +128,14 @@ export async function getValidGmailToken(params: {
 
 // Quick check to see if token works
 async function testGmailToken(accessToken: string): Promise<boolean> {
-  if (accessToken.startsWith("mock_")) return true;
   try {
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      console.warn("[Gmail Helper] testGmailToken failed profile check:", res.status, errTxt);
+    }
     return res.ok;
   } catch {
     return false;
@@ -130,21 +143,14 @@ async function testGmailToken(accessToken: string): Promise<boolean> {
 }
 
 // Fetch unread emails helper
-export async function fetchGoogleEmails(accessToken: string) {
-  if (accessToken.startsWith("mock_")) {
-    return [
-      { id: "msg-101", from: "Sarah Miller <sarah@millermedia.com>", subject: "Project specifications for redesign", snippet: "Hey! Just wanted to follow up on the website redesign spec. We need final feedback by Friday 3 PM...", date: "10:45 AM" },
-      { id: "msg-102", from: "GitHub Alerts <noreply@github.com>", subject: "[GitHub] Build Success: Optimus workflow-pipeline", snippet: "All checks passed in build workflow. 12 steps executed successfully.", date: "9:15 AM" },
-      { id: "msg-103", from: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", snippet: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", date: "Yesterday" }
-    ];
-  }
-
-  try {
-    const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=5", {
+export async function fetchGoogleEmails(accessToken: string) {  try {
+    const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=in:inbox category:primary is:unread&maxResults=5", {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (!listRes.ok) {
-      throw new Error(`Gmail list failed: ${listRes.statusText}`);
+      const errBody = await listRes.text();
+      console.error("[Gmail Helper Fetch] Google API error details:", errBody);
+      throw new Error(`Gmail list failed: ${listRes.statusText} - Details: ${errBody}`);
     }
     const listData = await listRes.json();
     const messages = listData.messages || [];
@@ -186,11 +192,6 @@ export async function fetchGoogleEmails(accessToken: string) {
 
 // Create a Gmail draft
 export async function createGmailDraft(accessToken: string, to: string, subject: string, body: string): Promise<boolean> {
-  if (accessToken.startsWith("mock_")) {
-    console.log("[Mock Gmail Draft] Saved draft:", { to, subject, body });
-    return true;
-  }
-  
   try {
     const emailLines = [
       `To: ${to}`,
@@ -233,14 +234,7 @@ export async function createGmailDraft(accessToken: string, to: string, subject:
 }
 
 // Search Gmail emails
-export async function searchGmailEmails(accessToken: string, query: string) {
-  if (accessToken.startsWith("mock_")) {
-    return [
-      { id: "msg-mock-1", from: "LinkedIn Job Alerts <jobalerts-noreply@linkedin.com>", subject: "Full Stack Developer jobs in United States", snippet: "Here are 10 new Full Stack Developer jobs matching your search criteria: React, Next.js, Node.js...", date: "Yesterday" }
-    ];
-  }
-
-  try {
+export async function searchGmailEmails(accessToken: string, query: string) {  try {
     const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=10`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -286,16 +280,7 @@ export async function searchGmailEmails(accessToken: string, query: string) {
 }
 
 // List Gmail emails (all or unread)
-export async function listGmailEmails(accessToken: string, maxResults = 10, includeRead = true) {
-  if (accessToken.startsWith("mock_")) {
-    return [
-      { id: "msg-101", from: "Sarah Miller <sarah@millermedia.com>", subject: "Project specifications for redesign", snippet: "Hey! Just wanted to follow up on the website redesign spec. We need final feedback by Friday 3 PM...", date: "10:45 AM" },
-      { id: "msg-102", from: "GitHub Alerts <noreply@github.com>", subject: "[GitHub] Build Success: Optimus workflow-pipeline", snippet: "All checks passed in build workflow. 12 steps executed successfully.", date: "9:15 AM" },
-      { id: "msg-103", from: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", snippet: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", date: "Yesterday" }
-    ];
-  }
-
-  try {
+export async function listGmailEmails(accessToken: string, maxResults = 10, includeRead = true) {  try {
     const q = includeRead ? "" : "is:unread";
     const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
     const listRes = await fetch(url, {
@@ -343,18 +328,7 @@ export async function listGmailEmails(accessToken: string, maxResults = 10, incl
 }
 
 // Fetch the full content/body of a specific email
-export async function getGmailEmail(accessToken: string, messageId: string) {
-  if (accessToken.startsWith("mock_")) {
-    return {
-      id: messageId,
-      from: "Mock Sender <sender@example.com>",
-      subject: "Mock Email Subject",
-      body: "This is a mock email body. The user has granted permissions for Gmail access.",
-      date: "Today"
-    };
-  }
-
-  try {
+export async function getGmailEmail(accessToken: string, messageId: string) {  try {
     const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
@@ -413,11 +387,6 @@ export async function getGmailEmail(accessToken: string, messageId: string) {
 
 // Send a Gmail email directly
 export async function sendGmailEmail(accessToken: string, to: string, subject: string, body: string): Promise<boolean> {
-  if (accessToken.startsWith("mock_")) {
-    console.log("[Mock Gmail Send] Sent email:", { to, subject, body });
-    return true;
-  }
-  
   try {
     const emailLines = [
       `To: ${to}`,
@@ -458,31 +427,7 @@ export async function sendGmailEmail(accessToken: string, to: string, subject: s
 }
 
 // List Google Calendar events from primary calendar
-export async function listGoogleCalendarEvents(accessToken: string, maxResults = 15) {
-  if (accessToken.startsWith("mock_")) {
-    return [
-      {
-        id: "mock-cal-1",
-        summary: "Standup Sync",
-        description: "Daily team update",
-        start: new Date(new Date().setHours(9, 0, 0, 0)).toISOString(),
-        end: new Date(new Date().setHours(9, 30, 0, 0)).toISOString(),
-        location: "Virtual Meeting Room",
-        attendees: ["dev@example.com", "pm@example.com"]
-      },
-      {
-        id: "mock-cal-2",
-        summary: "Refactoring focus block",
-        description: "Focus on multi-tenant backend architecture",
-        start: new Date(new Date().setHours(13, 0, 0, 0)).toISOString(),
-        end: new Date(new Date().setHours(15, 0, 0, 0)).toISOString(),
-        location: "",
-        attendees: []
-      }
-    ];
-  }
-
-  try {
+export async function listGoogleCalendarEvents(accessToken: string, maxResults = 15) {  try {
     const timeMin = new Date().toISOString();
     const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=${maxResults}&orderBy=startTime&singleEvents=true&timeMin=${encodeURIComponent(timeMin)}`, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -515,13 +460,7 @@ export async function createGoogleCalendarEvent(
   endISO: string,
   description?: string,
   location?: string
-): Promise<boolean> {
-  if (accessToken.startsWith("mock_")) {
-    console.log("[Mock Calendar Event Created]:", { summary, startISO, endISO, description, location });
-    return true;
-  }
-
-  try {
+): Promise<boolean> {  try {
     const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
       method: "POST",
       headers: {
@@ -551,13 +490,7 @@ export async function createGoogleCalendarEvent(
 }
 
 // Delete a Google Calendar event
-export async function deleteGoogleCalendarEvent(accessToken: string, eventId: string): Promise<boolean> {
-  if (accessToken.startsWith("mock_")) {
-    console.log("[Mock Calendar Event Deleted]:", eventId);
-    return true;
-  }
-
-  try {
+export async function deleteGoogleCalendarEvent(accessToken: string, eventId: string): Promise<boolean> {  try {
     const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
       method: "DELETE",
       headers: {

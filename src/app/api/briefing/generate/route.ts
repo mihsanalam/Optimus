@@ -5,28 +5,27 @@ import { insforge } from "@/lib/insforge";
 import { getValidGmailToken, fetchGoogleEmails } from "@/lib/gmailHelper";
 
 // High fidelity fallback response in case Gemini API key is missing or fails
-const getFallbackBriefing = (connectedApps: Record<string, boolean>, customInbox: any[] = []) => {
+const getFallbackBriefing = (connectedApps: Record<string, boolean>, userId: string | null = null, realEmails: any[] | null = null) => {
   const brief = [];
   const priorities = [];
   let importantCount = 0;
   let priorityCount = 0;
   let followUpsCount = 0;
+  let emails: any[] = [];
 
-  if (connectedApps.gmail) {
-    const emails = customInbox.length > 0 ? customInbox : [
-      { id: "msg-101", from: "Sarah Miller <sarah@millermedia.com>", subject: "Project specifications for redesign", snippet: "Hey! Just wanted to follow up on the website redesign spec. We need final feedback by Friday 3 PM...", date: "Today, 10:45 AM" },
-      { id: "msg-102", from: "GitHub Alerts <noreply@github.com>", subject: "[GitHub] Build Success: Optimus workflow-pipeline", snippet: "All checks passed in build workflow. 12 steps executed successfully.", date: "Today, 9:15 AM" },
-      { id: "msg-103", from: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", snippet: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", date: "Yesterday, 4:30 PM" }
-    ];
+  if (connectedApps.gmail && realEmails) {
+    emails = realEmails;
 
     importantCount += emails.length;
     followUpsCount += Math.min(2, emails.length);
     
-    brief.push({
-      app: "gmail",
-      title: "Gmail Communications Overview",
-      summary: `Detected ${emails.length} unread threads. Latest from ${emails[0]?.from || "Unknown"}: "${emails[0]?.subject || ""}".`,
-      time: "Updated 5m ago"
+    emails.forEach((email: any) => {
+      brief.push({
+        app: "gmail",
+        title: email.subject || "Gmail Message",
+        summary: `From: ${email.from}. ${email.snippet}`,
+        time: email.date || "Today"
+      });
     });
 
     // Populate priorities from the emails
@@ -67,7 +66,7 @@ const getFallbackBriefing = (connectedApps: Record<string, boolean>, customInbox
     followUpsCount += 1;
     
     // Check if real socket is active to fetch real message counts
-    const isLive = whatsappManager.getSession().status === "connected";
+    const isLive = whatsappManager.getSession(userId || "default_user").status === "connected";
 
     brief.push({
       app: "whatsapp",
@@ -129,7 +128,8 @@ const getFallbackBriefing = (connectedApps: Record<string, boolean>, customInbox
       followUpsCount
     },
     todayBrief: brief,
-    priorityItems: priorities
+    priorityItems: priorities,
+    gmailEmails: emails
   };
 };
 
@@ -147,14 +147,12 @@ export async function POST(request: Request) {
   const customApiKey = requestData.customApiKey || null;
 
   try {
-    const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn("[Optimus Briefing API] Gemini API key not found. Using high-fidelity mock compiler.");
-      return NextResponse.json(getFallbackBriefing(connectedApps, customInbox));
-    }
+    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+    // We don't return early here if apiKey is missing. We will resolve real emails first, then fallback.
 
     // 1. Resolve Gmail emails
-    let gmailEmails = [];
+    let gmailEmails: any[] = [];
+    let isGmailAuthenticated = false;
     if (connectedApps.gmail) {
       const clientGmailToken = requestData.gmailAccessToken || null;
       const clientGmailRefreshToken = requestData.gmailRefreshToken || null;
@@ -164,15 +162,11 @@ export async function POST(request: Request) {
         gmailRefreshToken: clientGmailRefreshToken,
         userId: userId
       });
+      
+      if (resolvedToken) isGmailAuthenticated = true;
 
       if (resolvedToken) {
         gmailEmails = await fetchGoogleEmails(resolvedToken);
-      } else {
-        gmailEmails = customInbox.length > 0 ? customInbox : [
-          { id: "msg-101", from: "Sarah Miller <sarah@millermedia.com>", subject: "Project specifications for redesign", snippet: "Hey! Just wanted to follow up on the website redesign spec. We need final feedback by Friday 3 PM...", date: "Today, 10:45 AM" },
-          { id: "msg-102", from: "GitHub Alerts <noreply@github.com>", subject: "[GitHub] Build Success: Optimus workflow-pipeline", snippet: "All checks passed in build workflow. 12 steps executed successfully.", date: "Today, 9:15 AM" },
-          { id: "msg-103", from: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", snippet: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", date: "Yesterday, 4:30 PM" }
-        ];
       }
     }
 
@@ -191,46 +185,48 @@ ${formattedEmails}
     }
 
     if (connectedApps.whatsapp) {
-      const isLive = whatsappManager.getSession().status === "connected";
-      rawDataSources.push(`
-- WhatsApp Platform (Connected, Live Mode: ${isLive}):
-  ${isLive 
-    ? "Socket is fully active. Status: Connected. Live message logs show active pairing." 
-    : "Sandbox Mode is active. Message: John asks if the mobile dashboard mockups are approved and says we need to run visual tests."}
-  Message: Sarah Miller says thanks for the help.
-      `);
+      const isLive = whatsappManager.getSession(userId || "default_user").status === "connected";
+      if (isLive) {
+        rawDataSources.push(`
+- WhatsApp Platform (Connected, Live Mode: true):
+  Socket is fully active. Status: Connected. Ready to sync messages.
+        `);
+      }
     }
 
-    if (connectedApps.slack) {
-      rawDataSources.push(`
-- Slack Platform (Connected):
-  Mention: Team discussion in #engineering about next week's code freeze.
-  Alert: Deployment completed for the syntonic repository on Render.
-      `);
-    }
-
-    if (connectedApps.outlook) {
-      rawDataSources.push(`
-- Outlook Calendar (Connected):
-  Event: Standup Sync at 9:00 AM.
-  Event: Refactoring block at 1:00 PM for 2 hours.
-      `);
-    }
+    // Since Slack and Outlook do not have real API fetching implemented here yet,
+    // we omit pushing fake data to avoid hallucinated dashboard entries.
 
     if (rawDataSources.length === 0) {
-      return NextResponse.json(getFallbackBriefing(connectedApps, customInbox));
+      // If we authenticated but there's literally no data, return empty state.
+      if (userId && Object.keys(connectedApps).length > 0 && connectedApps.gmail && isGmailAuthenticated) {
+        return NextResponse.json({
+          success: true,
+          source: "gemini",
+          stats: { importantCount: 0, priorityCount: 0, followUpsCount: 0 },
+          todayBrief: [],
+          priorityItems: [],
+          gmailEmails: []
+        });
+      }
+      return NextResponse.json(getFallbackBriefing(connectedApps, userId, gmailEmails.length > 0 ? gmailEmails : null));
+    }
+    
+    if (!apiKey) {
+      console.warn("[Optimus Briefing API] Gemini API key not found. Using high-fidelity mock compiler.");
+      return NextResponse.json(getFallbackBriefing(connectedApps, userId, gmailEmails));
     }
 
     // Initialize Gemini SDK
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
+    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
     let lastError: any = null;
     let text = "";
 
     const prompt = `
 You are Optimus, an advanced AI workflow assistant.
 Given the following raw notifications and state logs from connected platforms, analyze the information and generate:
-1. Daily Brief: A short, high-fidelity summary for each connected platform. Include actionable summaries.
+1. Daily Brief: A list of short, high-fidelity summary items. For Gmail/emails, do NOT group them into a single overview item. Instead, create a separate item in the "todayBrief" array for each individual message. The "title" should be the message's Subject/Topic, the "summary" should describe the core message/request, the "app" should be "gmail" (or matching platform), and "time" should strictly follow the format: "DD Month YYYY _ HH:MM AM/PM" (e.g., "16 June 2026 _ 04:30 PM").
 2. Priority Items: The top 2-3 most critical items requiring immediate attention. Include exact time, description, and importance level.
 3. Stats counts: Realistic counts for Important items, Priority items, and Follow-ups based on the content.
 
@@ -244,16 +240,16 @@ You MUST return the response strictly as a JSON object. Do not include markdown 
   "todayBrief": [
     {
       "app": "gmail" | "whatsapp" | "slack" | "outlook",
-      "title": "Gmail Overview" or similar,
+      "title": "Email subject or message topic",
       "summary": "Short 1-2 sentence summary of what is happening",
-      "time": "Updated Xm ago"
+      "time": "e.g., 17 June 2026 _ 10:45 AM"
     }
   ],
   "priorityItems": [
     {
       "app": "gmail" | "whatsapp" | "slack" | "outlook",
       "title": "Short title of item",
-      "time": "e.g. 10:45 AM",
+      "time": "e.g. 17 June 2026 _ 10:45 AM",
       "description": "Short description of the item and why it matters",
       "priority": "High" | "Critical" | "Medium"
     }
@@ -279,6 +275,7 @@ ${rawDataSources.join("\n\n")}
             success: true,
             source: "gemini",
             modelUsed: modelName,
+            gmailEmails: gmailEmails,
             ...parsedData
           });
         }
@@ -293,6 +290,6 @@ ${rawDataSources.join("\n\n")}
   } catch (err: any) {
     console.error("[Optimus Briefing API] Error compiling briefing with Gemini:", err);
     // Graceful fallback (using stored connectedApps)
-    return NextResponse.json(getFallbackBriefing(connectedApps, customInbox));
+    return NextResponse.json(getFallbackBriefing(connectedApps, userId, null));
   }
 }

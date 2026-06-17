@@ -3,7 +3,7 @@ import { whatsappManager } from "@/lib/whatsappManager";
 
 export async function POST(request: Request) {
   try {
-    const { phoneNumber } = await request.json();
+    const { phoneNumber, userId } = await request.json();
     if (!phoneNumber) {
       return NextResponse.json(
         { success: false, error: "Phone number is required" },
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const code = await whatsappManager.connect(phoneNumber);
+    const code = await whatsappManager.connect(phoneNumber, userId || "default_user");
     return NextResponse.json({
       success: true,
       pairingCode: code,

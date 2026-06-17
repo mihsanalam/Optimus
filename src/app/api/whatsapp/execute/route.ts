@@ -3,7 +3,7 @@ import { whatsappManager } from "@/lib/whatsappManager";
 
 export async function POST(request: Request) {
   try {
-    const { toolName, inputs } = await request.json();
+    const { toolName, inputs, userId } = await request.json();
     if (!toolName) {
       return NextResponse.json(
         { success: false, error: "Tool name is required" },
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const output = await whatsappManager.executeTool(toolName, inputs);
+    const output = await whatsappManager.executeTool(toolName, inputs, userId || "default_user");
     return NextResponse.json({
       success: true,
       output

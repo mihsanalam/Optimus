@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { insforge } from "@/lib/insforge";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { whatsappManager } from "@/lib/whatsappManager";
+import { getValidGmailToken } from "@/lib/gmailHelper";
 
 // Helper to fetch real unread emails from Google API
 async function fetchGoogleEmails(accessToken: string) {
@@ -70,10 +72,12 @@ export async function POST(request: Request) {
     const selectedApps: string[] = schedule.selected_apps || [];
     const selectedCategories: string[] = schedule.selected_categories || [];
 
-    // 2. Fetch live emails if connected
+    // 2. Fetch live emails and WhatsApp messages if connected
     let gmailEmails: any[] = [];
     if (selectedApps.map(a => a.toLowerCase()).includes("gmail")) {
       let credentials = null;
+      let validToken: string | null = null;
+      
       if (schedule.user_id) {
         try {
           const { data: userData } = await insforge.database
@@ -87,16 +91,50 @@ export async function POST(request: Request) {
         } catch (e) {
           console.warn("Could not fetch user credentials from DB:", e);
         }
+
+        if (credentials && !credentials.isMock) {
+          const tokenRes = await getValidGmailToken({
+            userId: schedule.user_id
+          });
+          validToken = tokenRes.accessToken;
+        }
       }
 
-      if (credentials && !credentials.isMock && credentials.accessToken) {
-        gmailEmails = await fetchGoogleEmails(credentials.accessToken);
+      if (validToken) {
+        gmailEmails = await fetchGoogleEmails(validToken);
       } else {
         // Default mock emails
         gmailEmails = [
           { sender: "Sarah Miller <sarah@millermedia.com>", subject: "Miller Redesign Specifications", body: "We need the final code and layout feedback by Friday 3:00 PM.", time: "10:45 AM" },
           { sender: "GitHub Notifications <noreply@github.com>", subject: "Build success: Optimus workflow-pipeline", body: "Check suite passed on main branch. Deploy is ready.", time: "11:20 AM" },
           { sender: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", body: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", time: "Yesterday, 4:30 PM" }
+        ];
+      }
+    }
+
+    let whatsappMessages: any[] = [];
+    let whatsappFollowups: any[] = [];
+    if (selectedApps.map(a => a.toLowerCase()).includes("whatsapp")) {
+      const uid = schedule.user_id || "default_user";
+      const isLive = whatsappManager.getSession(uid).status === "connected";
+      if (isLive) {
+        try {
+          const res = await whatsappManager.executeTool("whatsapp.fetch_recent_messages", {}, uid);
+          if (res.success && res.messages) {
+            whatsappMessages = res.messages.map((m: any) => ({
+              sender: m.from,
+              body: m.body,
+              time: m.time
+            }));
+          }
+        } catch (e) {
+          console.error("Failed to fetch live WhatsApp messages for briefing process:", e);
+        }
+      }
+      
+      if (whatsappMessages.length === 0) {
+        whatsappMessages = [
+          { sender: "John QA Lead", body: "Baileys WhatsApp socket connected. Standard pairing runs smoothly.", time: "9:15 AM" }
         ];
       }
     }
@@ -110,10 +148,8 @@ export async function POST(request: Request) {
         ]
       },
       whatsapp: {
-        messages: [
-          { sender: "John QA Lead", body: "Baileys WhatsApp socket connected. Standard pairing runs smoothly.", time: "9:15 AM" }
-        ],
-        followups: [
+        messages: whatsappMessages,
+        followups: whatsappFollowups.length > 0 ? whatsappFollowups : [
           { sender: "Mihsan Alam", body: "Please check the staging branch code quality.", time: "1:00 PM" }
         ]
       },
@@ -159,7 +195,7 @@ export async function POST(request: Request) {
     });
 
     // 3. Compile briefing using Gemini AI or high-fidelity fallback generator
-    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     
     let briefingTitle = `Scheduled Brief: ${schedule.name}`;
     let briefingSummary = "";
@@ -169,7 +205,7 @@ export async function POST(request: Request) {
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
-        const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
+        const modelsToTry = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
         let parsed: any = null;
         let lastError: any = null;
 

@@ -9,12 +9,13 @@ export async function GET(request: Request) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const host = request.headers.get("host") || "localhost:3000";
+  const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
+  const siteUrl = `${protocol}://${host}`;
   const redirectUri = `${siteUrl}/api/gmail/callback`;
 
   // Return url after oauth
-  const dashboardUrl = new URL("/dashboard", request.url);
-  dashboardUrl.searchParams.set("tab", "integrations");
+  const dashboardUrl = new URL("/integrations", request.url);
   
   if (!code) {
     dashboardUrl.searchParams.set("gmail_status", "error");
@@ -42,20 +43,9 @@ export async function GET(request: Request) {
     }
   };
 
-  // 1. Mock Authentication Fallback
-  if (!clientId || code.startsWith("mock_")) {
-    const creds = {
-      email: mockEmail,
-      accessToken: "mock_access_token_123456",
-      isMock: true,
-      updatedAt: new Date().toISOString()
-    };
-    
-    await saveToDatabase(state, creds);
-
-    dashboardUrl.searchParams.set("gmail_status", "success");
-    dashboardUrl.searchParams.set("gmail_email", mockEmail);
-    dashboardUrl.searchParams.set("gmail_token", "mock_access_token_123456");
+  if (!clientId) {
+    dashboardUrl.searchParams.set("gmail_status", "error");
+    dashboardUrl.searchParams.set("gmail_error", "Missing Google Client ID");
     return NextResponse.redirect(dashboardUrl.toString());
   }
 

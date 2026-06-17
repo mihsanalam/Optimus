@@ -43,3 +43,8 @@ next-env.d.ts
 # local updates documentation
 updates.md
 update.md
+
+.trigger
+
+# WhatsApp Sessions
+whatsapp_auth_session*

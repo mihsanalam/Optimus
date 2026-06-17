@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       const result = await whatsappManager.executeTool("whatsapp.send_message", {
         recipient_phone: recipient,
         message: message
-      });
+      }, userId || "default_user");
       return NextResponse.json({ success: true, source: "live-whatsapp", result });
     } else if (cleanPlatform === "gmail") {
       // Resolve Gmail credentials

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Prompt is required" }, { status: 400 });
     }
 
-    const apiKey = customApiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
       return NextResponse.json({
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       instruction = `Write a short draft responding to the prompt: "${prompt}". Use a ${tone} tone.`;
     }
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
+    const modelsToTry = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
     let lastError: any = null;
     let text = "";
 
