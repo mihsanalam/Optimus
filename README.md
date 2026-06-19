@@ -40,11 +40,20 @@ This approach leverages state-of-the-art AI for development and execution, while
 * **Intelligent Synthesis:** Summarizes recent unread live threads and upcoming meetings into a clean daily digest with `Critical`, `High`, and `Medium` priority tagging.
 * **Dedicated Briefings Dashboard:** A clean, glassmorphic UI where users can view generated summaries based on their real data and manually force a generation.
 
-### 🛠️ 6. Workspace Productivity Widgets
+### 🎙️ 6. JARVIS Voice Assistant (Hybrid UI)
+* **Web Speech API:** Browser native speech-to-text and text-to-speech for seamless voice interactions without heavy external dependencies.
+* **Hybrid Commands:** Uses Gemini to intelligently translate natural human speech into strict JSON UI commands (e.g., navigating pages, reading news) while providing conversational audio responses.
+* **Global Access:** Instantly trigger the AI voice overlay from anywhere in the app using the `Ctrl+Shift+M` shortcut.
+
+### 🛠️ 7. Workspace Productivity Widgets
 * **Quick Tasks (Todos):** Add, toggle, and delete workspace checklist items, persisted to your database.
 * **Sticky Notes:** Drag-and-drop color-coded memo pads with persistent layout positioning.
 * **World Clock:** View multiple timezones dynamically (Local, New York, London, Tokyo) with visual day/night theme indicators.
 * **Weather Widget:** Today's forecast using the OpenWeather API with geolocation fallback.
+
+### 🧠 8. Smart Intelligence Features
+* **AI Task Prioritization:** One-click integration with Gemini to analyze pending to-dos and rank them dynamically by assigning an Urgency and Impact score (1-10) with reasoning badges.
+* **Unified Search:** A globally accessible, debounced search bar inside the top navigation that queries across your Emails, Quick Tasks, and Sticky Notes, visually categorizing the results for rapid access.
 
 ---
 

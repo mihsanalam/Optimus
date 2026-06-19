@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   // Return url after oauth
   const dashboardUrl = new URL("/integrations", request.url);
-  
+
   if (!code) {
     dashboardUrl.searchParams.set("gmail_status", "error");
     dashboardUrl.searchParams.set("gmail_error", "No code returned from auth provider");

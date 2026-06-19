@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const mockParam = searchParams.get("mock");
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  
+
   // Resolve host and protocol dynamically from headers
   const host = request.headers.get("host") || "localhost:3000";
   const protocol = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       `access_type=offline&` +
       `prompt=consent&` +
       `state=${state}`;
-    
+
     return NextResponse.redirect(googleAuthUrl);
   } else {
     // Missing client ID, redirect to dashboard with error

@@ -26,7 +26,7 @@ interface DashboardContextType {
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [connectedApps, setConnectedApps] = useState<Record<string, boolean>>({});
   const [briefingData, setBriefingData] = useState<any>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
@@ -88,11 +88,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Wait for auth to resolve so we have the userId for token lookups
+    if (authLoading) return;
+    
     // Initial fetch
     if (Object.keys(connectedApps).length > 0) {
       refreshBriefing();
     }
-  }, [connectedApps]);
+  }, [connectedApps, user?.id, authLoading]);
 
   const getAppLabel = (app: string) => {
     switch (app.toLowerCase()) {

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import { VoiceButton } from "@/components/voice-button";
+import UnifiedSearchBar from "@/components/layout/UnifiedSearchBar";
 import { DashboardProvider, useDashboardContext } from "@/context/DashboardContext";
 import {
   LayoutDashboard,
@@ -31,6 +33,23 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const activeTab = pathname === "/dashboard" ? "dashboard" : pathname.split("/").pop();
+
+  const handleVoiceAction = (action: string, data?: Record<string, string>) => {
+    if (action === 'navigate' && data?.page) {
+      if (data.page === 'dashboard') router.push('/dashboard');
+      else router.push(`/${data.page}`);
+    } else if (action === 'news') {
+      router.push('/news-reader');
+    } else if (action === 'brief') {
+      router.push('/briefings');
+    } else if (action === 'calendar') {
+      router.push('/workspace');
+    } else if (action === 'email') {
+      router.push('/integrations');
+    } else if (action === 'task') {
+      router.push('/ai-agent');
+    }
+  };
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-5 h-5" />, bgClass: "bg-teal-500/10 text-teal-600 border border-teal-500/20" },
@@ -100,6 +119,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
         <div className="p-4 border-t border-zinc-200 dark:border-zinc-900/60 space-y-4">
+          {!isCollapsed && <VoiceButton onAction={handleVoiceAction} className="mb-2" />}
           <Link href={pricingItem.href} className={`w-full flex items-center gap-3.5 p-3 rounded-2xl transition-all duration-200 cursor-pointer ${activeTab === pricingItem.id ? "bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white shadow-md dark:shadow-lg" : "bg-transparent border border-transparent text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100/50 dark:hover:bg-zinc-900/40"}`}>
             <div className={`p-2.5 rounded-xl shrink-0 ${pricingItem.bgClass}`}>
               {pricingItem.icon}
@@ -145,6 +165,9 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <div className="hidden md:block">
+              <UnifiedSearchBar />
+            </div>
             <Link href="/dashboard/alerts" className="relative p-2 text-zinc-500 hover:text-zinc-905 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl transition-all cursor-pointer border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
               <Bell className="w-4 h-4" />
               {alerts.filter(a => a.status === "Pending").length > 0 && (

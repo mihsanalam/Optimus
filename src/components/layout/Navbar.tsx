@@ -5,6 +5,7 @@ import { Menu, X, ArrowRight, LogOut, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import UnifiedSearchBar from "@/components/layout/UnifiedSearchBar";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,6 +46,7 @@ export default function Navbar() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-5">
+            <UnifiedSearchBar />
             <ThemeToggle />
             {loading ? (
               <div className="w-20 h-8 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-xl" />
@@ -147,6 +149,9 @@ export default function Navbar() {
             </a>
           </nav>
           <div className="h-px bg-zinc-200 dark:bg-zinc-900 my-4" />
+          <div className="px-1 mb-4">
+            <UnifiedSearchBar />
+          </div>
           <div className="flex flex-col gap-3">
             {loading ? (
               <div className="w-full h-10 bg-zinc-100 dark:bg-zinc-900 animate-pulse rounded-xl" />

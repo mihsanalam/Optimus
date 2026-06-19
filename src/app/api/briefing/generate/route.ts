@@ -146,12 +146,12 @@ export async function POST(request: Request) {
   const userId = requestData.userId || null;
   const customApiKey = requestData.customApiKey || null;
 
+  let gmailEmails: any[] = [];
   try {
     const apiKey = customApiKey || process.env.GEMINI_API_KEY;
     // We don't return early here if apiKey is missing. We will resolve real emails first, then fallback.
 
     // 1. Resolve Gmail emails
-    let gmailEmails: any[] = [];
     let isGmailAuthenticated = false;
     if (connectedApps.gmail) {
       const clientGmailToken = requestData.gmailAccessToken || null;
@@ -223,10 +223,13 @@ ${formattedEmails}
     let lastError: any = null;
     let text = "";
 
+    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
     const prompt = `
 You are Optimus, an advanced AI workflow assistant.
+CURRENT SYSTEM DATE AND TIME: ${currentDate}
+
 Given the following raw notifications and state logs from connected platforms, analyze the information and generate:
-1. Daily Brief: A list of short, high-fidelity summary items. For Gmail/emails, do NOT group them into a single overview item. Instead, create a separate item in the "todayBrief" array for each individual message. The "title" should be the message's Subject/Topic, the "summary" should describe the core message/request, the "app" should be "gmail" (or matching platform), and "time" should strictly follow the format: "DD Month YYYY _ HH:MM AM/PM" (e.g., "16 June 2026 _ 04:30 PM").
+1. Daily Brief: A list of short, high-fidelity summary items. For Gmail/emails, do NOT group them into a single overview item. Instead, create a separate item in the "todayBrief" array for each individual message. The "title" should be the message's Subject/Topic, the "summary" should describe the core message/request, the "app" should be "gmail" (or matching platform). For "time", strictly use the EXACT relative or formatted time provided in the raw logs for that specific item based on the current system date (e.g., if it arrived today, say "Today _ HH:MM AM/PM", if yesterday, format appropriately). Format strictly as: "DD Month YYYY _ HH:MM AM/PM" or "Today _ HH:MM AM/PM".
 2. Priority Items: The top 2-3 most critical items requiring immediate attention. Include exact time, description, and importance level.
 3. Stats counts: Realistic counts for Important items, Priority items, and Follow-ups based on the content.
 
@@ -289,7 +292,7 @@ ${rawDataSources.join("\n\n")}
 
   } catch (err: any) {
     console.error("[Optimus Briefing API] Error compiling briefing with Gemini:", err);
-    // Graceful fallback (using stored connectedApps)
-    return NextResponse.json(getFallbackBriefing(connectedApps, userId, null));
+    // Graceful fallback (using stored connectedApps and real emails if fetched)
+    return NextResponse.json(getFallbackBriefing(connectedApps, userId, gmailEmails.length > 0 ? gmailEmails : null));
   }
 }
