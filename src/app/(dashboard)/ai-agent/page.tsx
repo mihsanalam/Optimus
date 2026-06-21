@@ -29,6 +29,27 @@ export default function AiAgentPage() {
     }
   }, [setCustomApiKey]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const action = searchParams.get("action");
+      if (action === "draft_social") {
+        const topic = searchParams.get("topic") || "";
+        const platform = searchParams.get("platform") || "LinkedIn";
+        setWritePrompt(topic);
+        setWriteFormat("post");
+        toast.success(`Pre-filled social media draft topic for ${platform}: "${topic}"`);
+        
+        // Clean parameters from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("action");
+        url.searchParams.delete("topic");
+        url.searchParams.delete("platform");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, []);
+
   const saveCustomApiKey = (key: string) => {
     setCustomApiKey(key);
     if (key.trim()) {

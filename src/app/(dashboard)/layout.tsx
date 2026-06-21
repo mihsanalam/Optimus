@@ -8,6 +8,7 @@ import ThemeToggle from "@/components/layout/ThemeToggle";
 import { VoiceButton } from "@/components/voice-button";
 import UnifiedSearchBar from "@/components/layout/UnifiedSearchBar";
 import { DashboardProvider, useDashboardContext } from "@/context/DashboardContext";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   FileText,
@@ -23,6 +24,7 @@ import {
   User,
   LogOut,
   CheckCircle2,
+  Briefcase,
 } from "lucide-react";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
@@ -48,12 +50,90 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       router.push('/integrations');
     } else if (action === 'task') {
       router.push('/ai-agent');
+    } else if (action === 'whatsapp') {
+      const to = data?.to || "";
+      const message = data?.message || "";
+      if (!to || !message) {
+        toast.error("Invalid WhatsApp voice action: recipient or message missing");
+        return;
+      }
+      
+      toast.promise(
+        fetch("/api/briefing/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: "whatsapp",
+            recipient: to,
+            message: message,
+            userId: user?.id || null
+          })
+        }).then(async (res) => {
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.error || "Failed to send message");
+          }
+          return json;
+        }),
+        {
+          loading: `Sending WhatsApp to ${to}...`,
+          success: (resData) => `WhatsApp message sent to ${to}! ${resData.source === 'sandbox' || (resData.result && resData.result.source === 'sandbox') ? '(Sandbox Mode)' : ''}`,
+          error: (err) => `Failed to send WhatsApp: ${err.message}`
+        }
+      );
+    } else if (action === 'draft_email') {
+      const to = data?.to || "";
+      const subject = data?.subject || "Voice Draft Email";
+      const message = data?.message || "";
+      if (!to || !message) {
+        toast.error("Invalid Email voice action: recipient or body missing");
+        return;
+      }
+
+      const gmailAccessToken = typeof window !== "undefined" ? localStorage.getItem("gmail_access_token") : null;
+      const gmailRefreshToken = typeof window !== "undefined" ? localStorage.getItem("gmail_refresh_token") : null;
+      
+      toast.promise(
+        fetch("/api/briefing/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            platform: "gmail",
+            recipient: to,
+            message: `Subject: ${subject}\n\n${message}`,
+            userId: user?.id || null,
+            gmailAccessToken,
+            gmailRefreshToken
+          })
+        }).then(async (res) => {
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.error || "Failed to draft email");
+          }
+          return json;
+        }),
+        {
+          loading: `Creating email draft to ${to}...`,
+          success: (resData) => `Email draft created for ${to}! ${resData.source === 'gmail' ? '' : '(Sandbox Mode)'}`,
+          error: (err) => `Failed to draft email: ${err.message}`
+        }
+      );
+    } else if (action === 'draft_social') {
+      const topic = data?.topic || "";
+      const platform = data?.platform || "LinkedIn";
+      if (!topic) {
+        toast.error("Invalid Social voice action: topic is missing");
+        return;
+      }
+      router.push(`/ai-agent?action=draft_social&topic=${encodeURIComponent(topic)}&platform=${encodeURIComponent(platform)}`);
+      toast.success(`Opening content creator with topic: "${topic}"`);
     }
   };
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-5 h-5" />, bgClass: "bg-teal-500/10 text-teal-600 border border-teal-500/20" },
     { id: "briefings", label: "Briefings", href: "/briefings", icon: <FileText className="w-5 h-5" />, bgClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" },
+    { id: "freelance", label: "Freelance CRM", href: "/freelance", icon: <Briefcase className="w-5 h-5" />, bgClass: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20" },
     { id: "ai-agent", label: "AI Agent", href: "/ai-agent", icon: <Bot className="w-5 h-5" />, bgClass: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20" },
     { id: "workspace", label: "Workspace", href: "/workspace", icon: <Sliders className="w-5 h-5" />, bgClass: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20" },
     { id: "integrations", label: "Integrations", href: "/integrations", icon: <Link2 className="w-5 h-5" />, bgClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" },

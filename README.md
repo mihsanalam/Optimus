@@ -55,6 +55,17 @@ This approach leverages state-of-the-art AI for development and execution, while
 * **AI Task Prioritization:** One-click integration with Gemini to analyze pending to-dos and rank them dynamically by assigning an Urgency and Impact score (1-10) with reasoning badges.
 * **Unified Search:** A globally accessible, debounced search bar inside the top navigation that queries across your Emails, Quick Tasks, and Sticky Notes, visually categorizing the results for rapid access.
 
+### 💼 9. Freelance CRM & Operations Hub
+* **Client & Project Registry:** Track freelance clients and projects with dynamic budget status bars and progress updates.
+* **Outreach Pipeline Leads:** Manually add/edit/delete potential business leads with custom metadata (Owner Name, Category, What Need, notes) or parse them automatically using AI extraction from plain text/voice transcripts. Features a status-based quick filter bar.
+* **Smart stopwatch/countdown Timer:** Track billable time per project with dynamic formatting (under 60m shown as minutes, over 60m shown as hours) and log it straight to your persistent ledger. Includes native browser notification support.
+* **Invoice Generator & Financial Ledger:** Issue clean, formatted invoices (PDF/CSV exportable) and record payments/expenses in a visual bookkeeping interface that charts net MRR progress.
+
+### 📰 10. AI News Aggregator & Creator Studio
+* **Real-time News Hub:** Fetches live articles on AI, Technology, Startups, and Cybersecurity from NewsAPI.
+* **Gemini Summarization:** Generate instant, readable summaries of any news article.
+* **One-Click Creator Studio:** Automatically draft fully styled LinkedIn posts or Twitter threads based on selected news stories to streamline professional engagement.
+
 ---
 
 ## 🗄️ Database Architecture (InsForge BaaS)
@@ -65,8 +76,16 @@ Optimus uses a PostgreSQL database schema managed via **InsForge**. The tables a
 2. `app_connections` — Encrypted OAuth tokens for Gmail, Slack, and WhatsApp.
 3. `briefing_schedules` — User briefing preferences and cron timing rules.
 4. `briefings_history` — The persistent log of generated AI briefs containing the `data` JSON blob.
-5. `todos` — User tasks, workspace priorities, and completion status.
-6. `sticky_notes` — Position, colors, and content of user dashboard notes.
+5. `generated_briefings` — Compiled unread email data digests and priority schedules.
+6. `todos` — User tasks, workspace priorities, and completion status.
+7. `sticky_notes` — Position, colors, and content of user dashboard notes.
+8. `freelance_clients` — Registered clients and contact metadata.
+9. `freelance_projects` — Active/completed projects, hourly rates, and target budgets.
+10. `freelance_invoices` — Client invoice documents, item details, and invoice statuses.
+11. `freelance_time_logs` — Recorded hours worked, task description, and project links.
+12. `freelance_transactions` — Financial ledger entries tracking income and expenses.
+13. `freelance_outreach` — Leads, contact details, owner name, category, and what needs.
+14. `saved_articles` — Bookmark index of tech and AI news hub articles.
 
 ---
 
