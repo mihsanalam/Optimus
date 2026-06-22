@@ -66,6 +66,11 @@ This approach leverages state-of-the-art AI for development and execution, while
 * **Gemini Summarization:** Generate instant, readable summaries of any news article.
 * **One-Click Creator Studio:** Automatically draft fully styled LinkedIn posts or Twitter threads based on selected news stories to streamline professional engagement.
 
+### ✍️ 11. Voice Studio & Content Generation Hub
+* **Writing Style Learner:** Paste 2-3 of your past emails or posts, and the AI will analyze your tone, vocabulary, and quirks to generate a strict, personalized "Style Profile".
+* **Context-Aware Quick Write:** Generate Emails, Social Posts, or Action Ideas with a single click. When "Write in my voice" is enabled, it automatically overrides generic tones and drafts content using your exact saved Style Profile.
+* **Unified Chat Integration:** Your custom voice profile is seamlessly injected into the Optimus Chat Assistant, ensuring any content drafted during conversation matches your authentic writing style.
+
 ---
 
 ## 🗄️ Database Architecture (InsForge BaaS)

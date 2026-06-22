@@ -22,10 +22,20 @@ export default function AiAgentPage() {
   const [writeResult, setWriteResult] = useState("");
   const [writeLoading, setWriteLoading] = useState(false);
 
+  // Writing Style States
+  const [styleSamples, setStyleSamples] = useState("");
+  const [styleProfile, setStyleProfile] = useState("");
+  const [styleLoading, setStyleLoading] = useState(false);
+  const [useCustomStyle, setUseCustomStyle] = useState(false);
+
   useEffect(() => {
     const savedKey = localStorage.getItem("optimus_gemini_api_key");
     if (savedKey) {
       setCustomApiKey(savedKey);
+    }
+    const savedStyle = localStorage.getItem("optimus_style_profile");
+    if (savedStyle) {
+      setStyleProfile(savedStyle);
     }
   }, [setCustomApiKey]);
 
@@ -71,12 +81,18 @@ export default function AiAgentPage() {
 
     try {
       const messagesToSend = [...chatMessages, { role: "user" as const, content: contextOverride || text }];
+      
+      let finalSystemInstruction = agentPrompt;
+      if (useCustomStyle && styleProfile) {
+        finalSystemInstruction += `\n\nCRITICAL INSTRUCTION: When asked to draft emails, posts, or content on behalf of the user, you MUST adopt their exact writing style below:\n"${styleProfile}"`;
+      }
+
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: messagesToSend,
-          systemInstruction: agentPrompt,
+          systemInstruction: finalSystemInstruction,
           customApiKey: customApiKey,
           gmailAccessToken: typeof window !== "undefined" ? localStorage.getItem("gmail_access_token") : null,
           gmailRefreshToken: typeof window !== "undefined" ? localStorage.getItem("gmail_refresh_token") : null,
@@ -128,7 +144,8 @@ export default function AiAgentPage() {
           format: writeFormat,
           prompt: writePrompt,
           tone: writeTone,
-          customApiKey: customApiKey
+          customApiKey: customApiKey,
+          styleProfile: useCustomStyle ? styleProfile : null
         })
       });
       const data = await res.json();
@@ -141,6 +158,31 @@ export default function AiAgentPage() {
       setWriteResult("⚠️ Connection error generating copy.");
     } finally {
       setWriteLoading(false);
+    }
+  };
+
+  const handleAnalyzeStyle = async () => {
+    if (!styleSamples.trim()) return;
+    setStyleLoading(true);
+    try {
+      const res = await fetch("/api/ai/analyze-style", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ samples: styleSamples, customApiKey })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStyleProfile(data.styleProfile);
+        localStorage.setItem("optimus_style_profile", data.styleProfile);
+        toast.success("Writing style analyzed and saved successfully!");
+        setStyleSamples(""); // Clear textarea on success
+      } else {
+        toast.error(`Analysis failed: ${data.error}`);
+      }
+    } catch (err) {
+      toast.error("Connection error while analyzing style.");
+    } finally {
+      setStyleLoading(false);
     }
   };
 
@@ -226,13 +268,27 @@ export default function AiAgentPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase">Tone</label>
-                <select value={writeTone} onChange={(e) => setWriteTone(e.target.value)} className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-xl p-2.5 text-xs text-zinc-800 dark:text-white outline-none cursor-pointer">
+                <select value={writeTone} onChange={(e) => setWriteTone(e.target.value)} disabled={useCustomStyle} className={`w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-xl p-2.5 text-xs text-zinc-800 dark:text-white outline-none cursor-pointer ${useCustomStyle ? 'opacity-50 cursor-not-allowed' : ''}`}>
                   <option value="professional">Professional</option>
                   <option value="casual">Casual</option>
                   <option value="creative">Creative</option>
                 </select>
               </div>
             </div>
+            {styleProfile && (
+              <div className="flex items-center gap-2 mt-2">
+                <input 
+                  type="checkbox" 
+                  id="useCustomStyle" 
+                  checked={useCustomStyle} 
+                  onChange={(e) => setUseCustomStyle(e.target.checked)} 
+                  className="w-3.5 h-3.5 text-indigo-500 rounded border-zinc-300 dark:border-zinc-700 focus:ring-indigo-500 cursor-pointer"
+                />
+                <label htmlFor="useCustomStyle" className="text-[10px] text-zinc-700 dark:text-zinc-300 font-bold cursor-pointer">
+                  Write in my voice (Custom Style Profile)
+                </label>
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase">Topic / Description</label>
               <textarea rows={3} value={writePrompt} onChange={(e) => setWritePrompt(e.target.value)} placeholder="What should we write about? E.g., 'follow up with Mihsan about deployment'..." className="w-full bg-zinc-50 dark:bg-zinc-955 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-xl p-3 text-xs text-zinc-900 dark:text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-all resize-none" />
@@ -247,6 +303,38 @@ export default function AiAgentPage() {
                   <button onClick={() => { navigator.clipboard.writeText(writeResult); alert("Copied to clipboard!"); }} className="text-[9px] text-indigo-500 hover:underline font-bold cursor-pointer">Copy Copy</button>
                 </div>
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-xl text-xs text-zinc-800 dark:text-zinc-300 font-sans whitespace-pre-wrap max-h-[150px] overflow-y-auto">{writeResult}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Voice Studio (Writing Style Learner) */}
+        <div className="bg-white dark:bg-zinc-900/20 border border-zinc-200 dark:border-zinc-900 rounded-3xl p-6 space-y-4 glow-border">
+          <div>
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Voice Studio</h3>
+            <p className="text-[10px] text-zinc-500 mt-0.5">Teach Optimus to write exactly like you</p>
+          </div>
+          
+          <div className="space-y-3">
+            {!styleProfile ? (
+              <>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase">Writing Samples</label>
+                  <textarea rows={4} value={styleSamples} onChange={(e) => setStyleSamples(e.target.value)} placeholder="Paste 2-3 of your best emails or posts here..." className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 rounded-xl p-3 text-[11px] text-zinc-800 dark:text-zinc-300 outline-none resize-none" />
+                </div>
+                <button onClick={handleAnalyzeStyle} disabled={styleLoading || !styleSamples.trim()} className="w-full py-2 bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 rounded-xl text-xs font-bold active-scale transition-all disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5">
+                  {styleLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Analyzing...</> : "Analyze My Style"}
+                </button>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Active Style Profile</label>
+                    <button onClick={() => { setStyleProfile(""); localStorage.removeItem("optimus_style_profile"); }} className="text-[9px] text-red-500 hover:underline cursor-pointer">Reset</button>
+                  </div>
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl text-[10px] text-emerald-800 dark:text-emerald-300 font-sans whitespace-pre-wrap">{styleProfile}</div>
+                </div>
               </div>
             )}
           </div>

@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: Request) {
   try {
-    const { format, prompt, tone, customApiKey } = await request.json();
+    const { format, prompt, tone, customApiKey, styleProfile } = await request.json();
     
     if (!prompt) {
       return NextResponse.json({ success: false, error: "Prompt is required" }, { status: 400 });
@@ -21,14 +21,32 @@ export async function POST(request: Request) {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     let instruction = "";
-    if (format === "email") {
-      instruction = `Write a professional email about: "${prompt}". Use a ${tone} tone. Return the subject line on the first line starting with "Subject: " and then the body of the email.`;
-    } else if (format === "post") {
-      instruction = `Write a clean social media post (LinkedIn/Twitter) about: "${prompt}". Use a ${tone} tone and include relevant hashtags.`;
-    } else if (format === "ideas") {
-      instruction = `Brainstorm a list of 5 creative ideas or next steps for: "${prompt}". Use a ${tone} tone and make it highly actionable.`;
+    if (styleProfile) {
+      instruction = `You are tasked with writing content in a very specific style.
+      
+Here is the exact writing style you MUST adopt:
+"${styleProfile}"
+
+Now, based on that style, `;
+      if (format === "email") {
+        instruction += `write a professional email about: "${prompt}". Return the subject line on the first line starting with "Subject: " and then the body of the email.`;
+      } else if (format === "post") {
+        instruction += `write a clean social media post (LinkedIn/Twitter) about: "${prompt}". Include relevant hashtags.`;
+      } else if (format === "ideas") {
+        instruction += `brainstorm a list of 5 creative ideas or next steps for: "${prompt}". Make it highly actionable.`;
+      } else {
+        instruction += `write a short draft responding to the prompt: "${prompt}".`;
+      }
     } else {
-      instruction = `Write a short draft responding to the prompt: "${prompt}". Use a ${tone} tone.`;
+      if (format === "email") {
+        instruction = `Write a professional email about: "${prompt}". Use a ${tone} tone. Return the subject line on the first line starting with "Subject: " and then the body of the email.`;
+      } else if (format === "post") {
+        instruction = `Write a clean social media post (LinkedIn/Twitter) about: "${prompt}". Use a ${tone} tone and include relevant hashtags.`;
+      } else if (format === "ideas") {
+        instruction = `Brainstorm a list of 5 creative ideas or next steps for: "${prompt}". Use a ${tone} tone and make it highly actionable.`;
+      } else {
+        instruction = `Write a short draft responding to the prompt: "${prompt}". Use a ${tone} tone.`;
+      }
     }
 
     const modelsToTry = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.5-pro"];
