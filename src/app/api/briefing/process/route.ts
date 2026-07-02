@@ -103,12 +103,7 @@ export async function POST(request: Request) {
       if (validToken) {
         gmailEmails = await fetchGoogleEmails(validToken);
       } else {
-        // Default mock emails
-        gmailEmails = [
-          { sender: "Sarah Miller <sarah@millermedia.com>", subject: "Miller Redesign Specifications", body: "We need the final code and layout feedback by Friday 3:00 PM.", time: "10:45 AM" },
-          { sender: "GitHub Notifications <noreply@github.com>", subject: "Build success: Optimus workflow-pipeline", body: "Check suite passed on main branch. Deploy is ready.", time: "11:20 AM" },
-          { sender: "Elena Rostova <elena.r@techround.org>", subject: "Guest speaker request: Technical Panel next Tuesday", body: "Hi Mihsan, we'd love to have you speak about AI agent coding. Please let me know your availability...", time: "Yesterday, 4:30 PM" }
-        ];
+        gmailEmails = [];
       }
     }
 
@@ -131,40 +126,24 @@ export async function POST(request: Request) {
           console.error("Failed to fetch live WhatsApp messages for briefing process:", e);
         }
       }
-      
-      if (whatsappMessages.length === 0) {
-        whatsappMessages = [
-          { sender: "John QA Lead", body: "Baileys WhatsApp socket connected. Standard pairing runs smoothly.", time: "9:15 AM" }
-        ];
-      }
     }
 
     // Aggregate platform data
     const mockPlatformData: any = {
       gmail: {
         email: gmailEmails,
-        tasks: [
-          { title: "Review website spec", priority: "High", deadline: "Friday 3:00 PM" }
-        ]
+        tasks: []
       },
       whatsapp: {
         messages: whatsappMessages,
-        followups: whatsappFollowups.length > 0 ? whatsappFollowups : [
-          { sender: "Mihsan Alam", body: "Please check the staging branch code quality.", time: "1:00 PM" }
-        ]
+        followups: whatsappFollowups
       },
       slack: {
-        mentions: [
-          { channel: "#engineering", user: "Dave", text: "@Mihsan let's merge the Baileys auth credentials fix before production.", time: "2:30 PM" }
-        ],
-        tasks: [
-          { title: "Approve migration script", priority: "High", deadline: "Today" }
-        ]
+        mentions: [],
+        tasks: []
       },
       outlook: {
-        email: [
-          { sender: "Microsoft Admin", subject: "Focused Time Reminder", body: "No meetings scheduled between 1:00 PM and 3:00 PM today.", time: "8:00 AM" }
-        ],
+        email: [],
         mentions: []
       }
     };

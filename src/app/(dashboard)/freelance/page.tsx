@@ -1208,7 +1208,7 @@ Thank you for your business!`;
           <button onClick={() => setShowProjectModal(true)} className="px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold border border-zinc-200 dark:border-zinc-700 cursor-pointer flex items-center gap-1.5 transition-colors">
             <Plus className="w-3.5 h-3.5" /> Project
           </button>
-          <button onClick={() => setShowTimeModal(true)} className="px-4 py-2.5 bg-violet-650 hover:bg-violet-600 dark:bg-violet-500/20 dark:hover:bg-violet-500/30 text-violet-600 dark:text-violet-400 border border-violet-500/20 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all">
+          <button onClick={() => setShowTimeModal(true)} className="px-4 py-2.5 bg-violet-100 hover:bg-violet-200 dark:bg-violet-500/20 dark:hover:bg-violet-500/30 text-violet-700 dark:text-violet-400 border border-violet-500/20 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all">
             <Clock className="w-3.5 h-3.5" /> Log Hours
           </button>
           <button onClick={() => setShowInvoiceModal(true)} className="px-4 py-2.5 bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white rounded-xl text-xs font-bold border-none cursor-pointer flex items-center gap-1.5 shadow-md shadow-violet-500/10 transition-all">
@@ -1272,7 +1272,7 @@ Thank you for your business!`;
                     </div>
                   </div>
  
-                  <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                     <div className="p-4 bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-150 dark:border-zinc-850 rounded-2xl">
                       <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wide">Gross Income</span>
                       <h4 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-450 mt-1">৳{totalIncome.toLocaleString()}</h4>
@@ -1816,7 +1816,7 @@ Thank you for your business!`;
                     />
                   </div>
 
-                  <button type="submit" className="w-full py-3 bg-violet-650 hover:bg-violet-600 dark:bg-violet-550 dark:hover:bg-violet-500 text-white rounded-xl font-bold cursor-pointer transition-all border-none">
+                  <button type="submit" className="w-full py-3 bg-violet-600 hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 text-white rounded-xl font-bold cursor-pointer transition-all border-none">
                     Log Hours to Database
                   </button>
                 </form>
@@ -1986,7 +1986,7 @@ Thank you for your business!`;
                     setEditingOutreach(null);
                     setOutreachForm({ name: "", url: "", phone: "", email: "", website: "", owner_name: "", category: "", what_need: "", status: "Lead", notes: "" });
                     setShowOutreachModal(true);
-                  }} className="px-3.5 py-2 bg-violet-650 hover:bg-violet-600 dark:bg-violet-550 dark:hover:bg-violet-550 text-white rounded-xl text-xs font-bold border-none cursor-pointer flex items-center gap-1.5 transition-all">
+                  }} className="px-3.5 py-2 bg-violet-600 hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400 text-white rounded-xl text-xs font-bold border-none cursor-pointer flex items-center gap-1.5 transition-all">
                     <Plus className="w-3.5 h-3.5" /> Add Lead
                   </button>
                 </div>
@@ -2126,7 +2126,7 @@ Thank you for your business!`;
                               <td className="py-3.5 text-zinc-700 dark:text-zinc-300 font-medium">{lead.owner_name || "N/A"}</td>
                               <td className="py-3.5">
                                 {lead.category ? (
-                                  <span className="px-2 py-0.5 bg-violet-50 dark:bg-violet-950/40 text-violet-650 dark:text-violet-400 rounded-lg text-[10px] font-semibold border border-violet-100 dark:border-violet-900/40">
+                                  <span className="px-2 py-0.5 bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 rounded-lg text-[10px] font-semibold border border-violet-100 dark:border-violet-900/40">
                                     {lead.category}
                                   </span>
                                 ) : (
@@ -2651,7 +2651,7 @@ Thank you for your business!`;
               {/* Total Summary */}
               <div className="flex justify-between items-center bg-zinc-50 dark:bg-zinc-950/40 p-4 border border-zinc-150 dark:border-zinc-800 rounded-2xl">
                 <span className="font-bold text-zinc-550 dark:text-zinc-400 uppercase">Total Amount</span>
-                <span className="text-lg font-extrabold text-violet-550 dark:text-violet-405">
+                <span className="text-lg font-extrabold text-violet-600 dark:text-violet-400">
                   ৳{invoiceForm.items.reduce((sum, item) => sum + (item.quantity * item.rate), 0).toFixed(2)}
                 </span>
               </div>

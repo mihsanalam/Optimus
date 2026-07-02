@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   let calendarEvents: any[] = [];
   let userId = "";
   let tokenToUse: string | null = null;
+  let localContext: any[] = [];
 
   try {
     try {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       gmailRefreshToken = body.gmailRefreshToken || "";
       calendarEvents = body.calendarEvents || [];
       userId = body.userId || "";
+      localContext = body.localContext || [];
     } catch (e) {
       return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
     }
@@ -97,6 +99,26 @@ export async function POST(request: Request) {
         return `- [${evt.time || evt.date || "Today"}] ${evt.summary || evt.title || evt.name}${evt.description ? ` (${evt.description})` : ""}`;
       }).join("\n");
       dynamicContext += `\n\nUSER'S LOCAL CALENDAR SCHEDULE:\n${eventLines}\n`;
+    }
+
+    // Inject account connection status and strict tool call boundaries
+    const isGmailConnected = !!tokenToUse;
+    const isWhatsAppConnected = whatsappManager.getSession(userId || "default_user").status === "connected";
+
+    dynamicContext += `\n\nINTEGRATION STATUSES:\n- Google (Gmail/Calendar): ${isGmailConnected ? "CONNECTED" : "NOT CONNECTED"}\n- WhatsApp: ${isWhatsAppConnected ? "CONNECTED" : "NOT CONNECTED"}\n`;
+
+    if (!isGmailConnected) {
+      dynamicContext += `\nCRITICAL INSTRUCTION FOR GOOGLE TOOLS: Since Google is NOT connected, you CANNOT use any Google tools (createGmailDraft, sendGmailEmail, listGmailEmails, getGmailEmail, searchGmail, listGoogleCalendarEvents, createGoogleCalendarEvent, deleteGoogleCalendarEvent). If the user asks you to draft a reply, review emails, or check events, DO NOT call any tool functions. Fulfill the user's request by writing the email draft text or response directly inside your chat response block so they can see and copy it.\n`;
+    }
+    if (!isWhatsAppConnected) {
+      dynamicContext += `\nCRITICAL INSTRUCTION FOR WHATSAPP TOOLS: Since WhatsApp is NOT connected, you CANNOT use sendWhatsAppMessage or other WhatsApp tool functions. DO NOT call WhatsApp tools. Fulfill requests by writing message drafts directly in your response text.\n`;
+    }
+
+    if (localContext && localContext.length > 0) {
+      const localLines = localContext.map((item: any, index: number) => {
+        return `${index + 1}. [App: ${item.app || "system"}] Sender: ${item.sender || "N/A"} | Title/Subject: "${item.title || item.subject || ""}" | Content: "${item.snippet || item.description || ""}" | Time: ${item.time || "N/A"}`;
+      }).join("\n");
+      dynamicContext += `\n\nUSER'S CURRENT DASHBOARD ITEMS / NOTIFICATIONS:\n${localLines}\n\nCRITICAL INSTRUCTION: If the user asks you to draft a reply, review, summarize, or analyze any email, message, or task listed above, use the details from these dashboard items. Write the complete draft reply, content summary, or message text directly in your response so the user can copy it, rather than invoking a tool or claiming you cannot perform the action.`;
     }
 
     // Gemini API requires the first message in the history list to be from the 'user' (role: 'user').
@@ -303,23 +325,16 @@ export async function POST(request: Request) {
 
           const isGoogleTool = call.name.toLowerCase().includes("gmail") || call.name.toLowerCase().includes("calendar");
           if (isGoogleTool && !tokenToUse) {
-            responseText = `I'm sorry, I cannot perform the "${call.name}" action because your Google account is not connected.`;
+            console.log(`[Google Tool Fallback] Account not connected. Generating text reply directly for tool: ${call.name}`);
+            const followUpResult = await chat.sendMessage([
+              {
+                text: `Your Google account is NOT connected, so you cannot execute "${call.name}" on your live account. Please write the requested draft reply, details, or calendar action response directly in this chat message for the user.`
+              }
+            ]);
+            responseText = followUpResult.response.text();
           } else {
             const token = tokenToUse as string;
-            if (call.name === "createGmailDraft") {
-              const { to, subject, body } = call.args as any;
-              const success = await createGmailDraft(token, to, subject, body);
-              if (success) {
-                const followUpResult = await chat.sendMessage([
-                  {
-                    text: `Successfully created Gmail draft to ${to} with subject "${subject}". Tell the user this is done.`
-                  }
-                ]);
-                responseText = followUpResult.response.text();
-              } else {
-                responseText = "I encountered an error trying to save that email as a draft in your Gmail account. Please verify your connection.";
-              }
-            } else if (call.name === "searchGmail") {
+            if (call.name === "searchGmail") {
               const { query } = call.args as any;
               const searchResults = await searchGmailEmails(token, query);
               if (searchResults.length > 0) {

@@ -34,6 +34,10 @@ Now, based on that style, `;
         instruction += `write a clean social media post (LinkedIn/Twitter) about: "${prompt}". Include relevant hashtags.`;
       } else if (format === "ideas") {
         instruction += `brainstorm a list of 5 creative ideas or next steps for: "${prompt}". Make it highly actionable.`;
+      } else if (format === "alert-summary") {
+        instruction += `analyze and summarize the following system alert in 1-2 sentences. Tell the user what happened and what action is required. Alert Details: "${prompt}".`;
+      } else if (format === "alert-reply") {
+        instruction += `draft a professional reply message to resolve or respond to the following system alert. Keep it concise. Alert Details: "${prompt}".`;
       } else {
         instruction += `write a short draft responding to the prompt: "${prompt}".`;
       }
@@ -44,6 +48,10 @@ Now, based on that style, `;
         instruction = `Write a clean social media post (LinkedIn/Twitter) about: "${prompt}". Use a ${tone} tone and include relevant hashtags.`;
       } else if (format === "ideas") {
         instruction = `Brainstorm a list of 5 creative ideas or next steps for: "${prompt}". Use a ${tone} tone and make it highly actionable.`;
+      } else if (format === "alert-summary") {
+        instruction = `You are Optimus, an AI assistant. Analyze and summarize the following system alert in 1 or 2 sentences. Clearly highlight what action is needed. Alert Details: "${prompt}".`;
+      } else if (format === "alert-reply") {
+        instruction = `You are Optimus, an AI assistant. Draft a concise and professional reply message to respond to this alert: "${prompt}". Output only the reply itself.`;
       } else {
         instruction = `Write a short draft responding to the prompt: "${prompt}". Use a ${tone} tone.`;
       }
@@ -102,6 +110,10 @@ Now, based on that style, `;
         fallbackText = `Subject: Quick Follow-up regarding: ${prompt}\n\nHi there,\n\nI wanted to reach out regarding "${prompt}". Let's connect soon to discuss the details and align on our next steps.\n\nBest regards,\n[Your Name]`;
       } else if (format === "post") {
         fallbackText = `🚀 Excited to share some thoughts on: ${prompt}! \n\nFocusing on quality and execution makes all the difference. What are your thoughts?\n\n#Professional #Growth #Productivity`;
+      } else if (format === "alert-summary") {
+        fallbackText = `**Summary**: The alert indicates that immediate action is needed for: "${prompt}". Please review and proceed with resolution steps.`;
+      } else if (format === "alert-reply") {
+        fallbackText = `Hi there,\n\nI have received the notification regarding "${prompt}". I am looking into it and will update you shortly.\n\nBest regards,\nOperator`;
       } else {
         fallbackText = `Here is a quick draft regarding "${prompt}" (written in a ${tone} tone):\n\n1. Define primary objectives clearly.\n2. Coordinate with key stakeholders.\n3. Implement iterative feedback loops.\n4. Measure and analyze performance indicators.\n5. Optimize resource allocation.`;
       }

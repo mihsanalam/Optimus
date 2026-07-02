@@ -41,6 +41,7 @@ const getFallbackBriefing = (connectedApps: Record<string, boolean>, userId: str
         priorities.push({
           app: "gmail",
           title: email.subject,
+          sender: email.from,
           time: email.date || "Today",
           description: `From: ${email.from}. ${email.snippet}`,
           priority: email.subject.toLowerCase().includes("urgent") ? "Critical" : "High"
@@ -53,6 +54,7 @@ const getFallbackBriefing = (connectedApps: Record<string, boolean>, userId: str
       priorities.push({
         app: "gmail",
         title: emails[0].subject,
+        sender: emails[0].from,
         time: emails[0].date || "Today",
         description: `From: ${emails[0].from}. ${emails[0].snippet}`,
         priority: "Medium"
@@ -80,6 +82,7 @@ const getFallbackBriefing = (connectedApps: Record<string, boolean>, userId: str
     priorities.push({
       app: "whatsapp",
       title: isLive ? "Active WhatsApp Node" : "John - Layout Code Review",
+      sender: isLive ? "WhatsApp" : "John",
       time: "9:15 AM",
       description: isLive 
         ? "Baileys session connected successfully. Listening to incoming message alerts."
@@ -244,6 +247,7 @@ You MUST return the response strictly as a JSON object. Do not include markdown 
     {
       "app": "gmail" | "whatsapp" | "slack" | "outlook",
       "title": "Email subject or message topic",
+      "sender": "Sender name or contact email (e.g. Sarah Miller or sarah@millermedia.com)",
       "summary": "Short 1-2 sentence summary of what is happening",
       "time": "e.g., 17 June 2026 _ 10:45 AM"
     }
@@ -252,6 +256,7 @@ You MUST return the response strictly as a JSON object. Do not include markdown 
     {
       "app": "gmail" | "whatsapp" | "slack" | "outlook",
       "title": "Short title of item",
+      "sender": "Sender name or contact email (e.g. Sarah Miller or sarah@millermedia.com)",
       "time": "e.g. 17 June 2026 _ 10:45 AM",
       "description": "Short description of the item and why it matters",
       "priority": "High" | "Critical" | "Medium"

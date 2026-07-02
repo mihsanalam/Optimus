@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Optimus | Personal AI Workflow Assistant",
   description: "Automate app integrations, get smart daily briefings, and maximize your productivity with your custom AI companion.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 import { AuthProvider } from "@/context/AuthContext";

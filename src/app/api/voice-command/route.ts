@@ -9,7 +9,7 @@ Response format:
   "response": "short friendly reply — 1 sentence max, will be spoken aloud",
   "data": {
     "taskName": "if creating a task",
-    "page": "ai-agent|dashboard|briefings|workspace|integrations|alerts|news-reader|settings (if navigating)",
+    "page": "ai-agent|dashboard|briefing|workspace|integrations|alerts|news-reader|settings (if navigating)",
     "query": "search or filter query if relevant",
     "to": "recipient name, email, or phone number for whatsapp/draft_email",
     "message": "message body or draft content to send or draft",

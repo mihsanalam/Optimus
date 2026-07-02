@@ -25,6 +25,8 @@ import {
   LogOut,
   CheckCircle2,
   Briefcase,
+  Menu,
+  X,
 } from "lucide-react";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
@@ -33,8 +35,13 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const { alerts } = useDashboardContext();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const activeTab = pathname === "/dashboard" ? "dashboard" : pathname.split("/").pop();
+  const activeTab = pathname === "/dashboard" 
+    ? "dashboard" 
+    : pathname.startsWith("/briefing") 
+    ? "briefing" 
+    : pathname.split("/").pop();
 
   const handleVoiceAction = (action: string, data?: Record<string, string>) => {
     if (action === 'navigate' && data?.page) {
@@ -43,7 +50,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     } else if (action === 'news') {
       router.push('/news-reader');
     } else if (action === 'brief') {
-      router.push('/briefings');
+      router.push('/briefing');
     } else if (action === 'calendar') {
       router.push('/workspace');
     } else if (action === 'email') {
@@ -132,7 +139,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-5 h-5" />, bgClass: "bg-teal-500/10 text-teal-600 border border-teal-500/20" },
-    { id: "briefings", label: "Briefings", href: "/briefings", icon: <FileText className="w-5 h-5" />, bgClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" },
+    { id: "briefing", label: "Briefings", href: "/briefing", icon: <FileText className="w-5 h-5" />, bgClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20" },
     { id: "freelance", label: "Freelance CRM", href: "/freelance", icon: <Briefcase className="w-5 h-5" />, bgClass: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-500/20" },
     { id: "ai-agent", label: "AI Agent", href: "/ai-agent", icon: <Bot className="w-5 h-5" />, bgClass: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20" },
     { id: "workspace", label: "Workspace", href: "/workspace", icon: <Sliders className="w-5 h-5" />, bgClass: "bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/20" },
@@ -156,7 +163,15 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="absolute top-0 right-0 w-[450px] h-[450px] bg-accent/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-20 w-[400px] h-[400px] bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
 
-      <aside className={`border-r border-zinc-200 dark:border-zinc-900 bg-white/95 dark:bg-zinc-950/90 backdrop-blur-md flex flex-col justify-between transition-all duration-300 relative z-20 shrink-0 h-full overflow-y-auto ${isCollapsed ? "w-20" : "w-64"}`}>
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside className={`fixed md:relative border-r border-zinc-200 dark:border-zinc-900 bg-white/95 dark:bg-zinc-950/90 backdrop-blur-md flex flex-col justify-between transition-all duration-300 z-50 h-full overflow-y-auto ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 ${isCollapsed ? "md:w-20 w-64" : "w-64"}`}>
         <div>
           <div className="flex h-20 items-center justify-between px-5 border-b border-zinc-200 dark:border-zinc-900/60">
             <Link href="/" className="flex items-center gap-3 min-w-0">
@@ -169,17 +184,24 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
               )}
             </Link>
             {!isCollapsed && (
-              <button onClick={() => setIsCollapsed(true)} className="p-1 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-900 text-zinc-550 dark:text-zinc-450 hover:text-zinc-950 dark:hover:text-white transition-all cursor-pointer">
+              <button onClick={() => setIsCollapsed(true)} className="hidden md:flex p-1 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-900 text-zinc-550 dark:text-zinc-450 hover:text-zinc-950 dark:hover:text-white transition-all cursor-pointer">
                 <ChevronLeft className="w-4 h-4" />
               </button>
             )}
+            <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-1 rounded-lg text-zinc-550 dark:text-zinc-450 hover:text-zinc-950 dark:hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
           </div>
           <nav className="p-4 space-y-2.5">
             {menuItems.map((item) => {
               const isActive = activeTab === item.id;
               const pendingAlerts = alerts.filter(a => a.status === "Pending").length;
               return (
-                <Link key={item.id} href={item.href} className={`w-full flex items-center p-2 rounded-3xl transition-all duration-200 cursor-pointer relative mx-auto ${isCollapsed ? "justify-center max-w-[64px]" : "justify-start px-3"} ${isActive ? "bg-zinc-100/80 dark:bg-zinc-800/50 shadow-sm border border-zinc-200/50 dark:border-zinc-800/50" : "bg-transparent border border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900/40"}`}>
+                <Link 
+                  key={item.id} 
+                  href={item.href} 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`w-full flex items-center p-2 rounded-3xl transition-all duration-200 cursor-pointer relative mx-auto ${isCollapsed ? "md:justify-center md:max-w-[64px]" : "justify-start px-3"} ${isActive ? "bg-zinc-100/80 dark:bg-zinc-800/50 shadow-sm border border-zinc-200/50 dark:border-zinc-800/50" : "bg-transparent border border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900/40"}`}>
                   <div className="flex items-center gap-3.5 min-w-0 w-full relative">
                     <div className={`p-2.5 rounded-2xl shrink-0 ${item.bgClass} relative z-10 transition-transform ${isActive ? "scale-105" : ""}`}>
                       {item.icon}
@@ -207,7 +229,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             {!isCollapsed && <span className="text-xs font-semibold tracking-wide">{pricingItem.label}</span>}
           </Link>
           {isCollapsed && (
-            <button onClick={() => setIsCollapsed(false)} className="w-full flex justify-center py-2 border border-zinc-200 dark:border-zinc-850 rounded-xl bg-zinc-50 dark:bg-zinc-900 text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white cursor-pointer">
+            <button onClick={() => setIsCollapsed(false)} className="hidden md:flex w-full justify-center py-2 border border-zinc-200 dark:border-zinc-850 rounded-xl bg-zinc-50 dark:bg-zinc-900 text-zinc-550 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white cursor-pointer">
               <ChevronRight className="w-5 h-5" />
             </button>
           )}
@@ -230,12 +252,18 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 flex flex-col h-full overflow-y-auto relative z-10">
-        <header className="h-20 border-b border-zinc-200 dark:border-zinc-900 px-8 flex items-center justify-between bg-white/40 dark:bg-zinc-950/20 backdrop-blur-sm relative z-10 transition-colors duration-200">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-800 pr-4">
+      <main className="flex-1 min-w-0 flex flex-col h-full relative z-10">
+        <header className="h-16 md:h-20 shrink-0 border-b border-zinc-200 dark:border-zinc-900 px-4 md:px-8 flex items-center justify-between bg-white/40 dark:bg-zinc-950/20 backdrop-blur-md relative z-20 transition-colors duration-200">
+          <div className="flex items-center gap-2 md:gap-4">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 -ml-2 rounded-xl text-zinc-550 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 md:border-r border-zinc-200 dark:border-zinc-800 md:pr-4">
               <img src="/logo.png" alt="Optimus Logo" className="w-7 h-7 rounded-lg object-cover border border-zinc-200 dark:border-zinc-800 shrink-0 shadow-sm" />
-              <span className="font-extrabold text-[10px] tracking-widest bg-gradient-to-r from-accent to-accent-hover bg-clip-text text-transparent uppercase select-none">Optimus</span>
+              <span className="hidden md:inline font-extrabold text-[10px] tracking-widest bg-gradient-to-r from-accent to-accent-hover bg-clip-text text-transparent uppercase select-none">Optimus</span>
             </div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-white capitalize">
@@ -248,7 +276,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <div className="hidden md:block">
               <UnifiedSearchBar />
             </div>
-            <Link href="/dashboard/alerts" className="relative p-2 text-zinc-500 hover:text-zinc-905 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl transition-all cursor-pointer border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
+            <Link href="/alerts" className="relative p-2 text-zinc-500 hover:text-zinc-905 dark:text-zinc-400 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-xl transition-all cursor-pointer border border-transparent hover:border-zinc-200 dark:hover:border-zinc-800">
               <Bell className="w-4 h-4" />
               {alerts.filter(a => a.status === "Pending").length > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[8px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-zinc-950 shrink-0">
@@ -268,7 +296,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex-1 p-8 relative z-10 max-w-7xl w-full mx-auto space-y-8 animate-fadeIn">
+        <div className="flex-1 overflow-y-auto relative z-10 w-full animate-fadeIn">
+          <div className="p-4 md:p-8 max-w-7xl w-full mx-auto space-y-4 md:space-y-8">
           {/* Guest Preview Alert banner */}
           {!user && (
             <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-955/15 dark:bg-indigo-950/15 border border-indigo-100 dark:border-indigo-900/25 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -281,6 +310,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {children}
+        </div>
         </div>
       </main>
     </div>

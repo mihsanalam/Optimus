@@ -220,9 +220,11 @@ export default function SignUpPage() {
           /* View 3: Sign Up Form */
           <>
             <div className="flex flex-col items-center mb-8 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
-                <Sparkles className="w-6 h-6" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="Optimus Logo"
+                className="w-12 h-12 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-800 shadow-lg shadow-indigo-500/10 dark:shadow-indigo-500/5 mb-4"
+              />
               <h1 className="text-2xl font-bold tracking-tight text-zinc-905 dark:text-white">Create Account</h1>
               <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1.5">
                 Join Optimus today to automate your workflow

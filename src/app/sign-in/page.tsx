@@ -87,9 +87,11 @@ export default function SignInPage() {
       <div className="w-full max-w-md bg-white/80 dark:bg-zinc-900/40 backdrop-blur-xl border border-zinc-200 dark:border-zinc-850 rounded-3xl p-8 shadow-2xl relative glow-border animate-fadeIn transition-colors duration-200">
         {/* Title */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
-            <Sparkles className="w-6 h-6" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Optimus Logo"
+            className="w-12 h-12 rounded-2xl object-cover border border-zinc-200 dark:border-zinc-800 shadow-lg shadow-indigo-500/10 dark:shadow-indigo-500/5 mb-4"
+          />
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">Welcome Back</h1>
           <p className="text-xs text-zinc-550 dark:text-zinc-400 mt-1.5">
             Log in to manage your AI workflows

@@ -36,7 +36,7 @@ export default function DashboardPage() {
             Refresh
           </button>
           <button
-            onClick={() => router.push("/briefings")}
+            onClick={() => router.push("/briefing")}
             className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md shadow-indigo-500/10 cursor-pointer border-none shrink-0"
           >
             <FileText className="w-3.5 h-3.5" />
